@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "biomcp"
+version = "0.1.0"
+description = "MCP platform for biology, bioinformatics, and bioimaging"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{name = "BioMCP Contributors"}]
+license = {text = "MIT"}
+
+[project.optional-dependencies]
+mcp = ["mcp>=2,<3"]
+test = ["pytest>=8,<9"]
+
+[project.scripts]
+biomcp = "biomcp.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
