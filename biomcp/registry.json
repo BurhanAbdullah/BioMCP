@@ -1,25 +1,54 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "product": "BioMCP",
   "servers": [
     {
-      "name": "bionuclei",
-      "display_name": "BioNuclei",
+      "name": "bioimage",
+      "display_name": "BioImage Tools",
       "category": "bioimaging",
-      "status": "validated",
+      "status": "experimental",
       "installable": true,
-      "command": "bionuclei-mcp",
-      "transport": ["stdio", "streamable-http"],
-      "description": "Nuclear instance segmentation and derived bioimage measurements.",
-      "tools": ["inspect_image", "predict_image", "evaluate_image", "compute_instance_metrics", "read_provenance", "load_result_summary"]
+      "package_extra": "bioimage",
+      "command": "biomcp-bioimage",
+      "transport": ["stdio"],
+      "description": "Open bioimage inspection, intensity and threshold primitives.",
+      "tools": ["inspect_image", "intensity_summary", "threshold_image"]
     },
     {
       "name": "imagej",
       "display_name": "ImageJ / Fiji",
       "category": "bioimaging",
-      "status": "planned",
+      "status": "experimental",
+      "installable": true,
+      "package_extra": "imagej",
+      "command": "biomcp-imagej",
+      "transport": ["stdio"],
+      "description": "Bridge an installed ImageJ/Fiji runtime to MCP with explicit local-path controls.",
+      "tools": ["imagej_status", "run_macro"]
+    },
+    {
+      "name": "llm",
+      "display_name": "LLM Bridge",
+      "category": "llm",
+      "status": "experimental",
+      "installable": true,
+      "package_extra": "llm",
+      "command": "biomcp-llm",
+      "transport": ["stdio"],
+      "description": "Connect workflows to an OpenAI-compatible model endpoint.",
+      "tools": ["list_models", "complete"]
+    },
+    {
+      "name": "bionuclei",
+      "display_name": "BioNuclei",
+      "category": "bioimaging",
+      "status": "validated",
       "installable": false,
-      "description": "Planned adapter for validated ImageJ/Fiji operations."
+      "external": true,
+      "command": "bionuclei-mcp",
+      "transport": ["stdio", "streamable-http"],
+      "description": "Nuclear instance segmentation and derived measurements. External validated server.",
+      "tools": ["inspect_image", "predict_image", "evaluate_image", "compute_instance_metrics", "read_provenance", "load_result_summary"]
     },
     {
       "name": "cellprofiler",
@@ -27,7 +56,8 @@
       "category": "bioimage-analysis",
       "status": "planned",
       "installable": false,
-      "description": "Planned adapter for validated CellProfiler pipelines."
+      "description": "Future adapter for validated CellProfiler pipelines.",
+      "tools": []
     }
   ]
 }
