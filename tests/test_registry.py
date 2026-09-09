@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from biomcp.cli import _write_codex
 from biomcp.registry import get_server, installable_servers, load_registry
 
@@ -30,6 +32,24 @@ def test_bionuclei_is_external_not_duplicated():
 def test_registry_is_valid_json():
     payload = json.loads(Path("biomcp/registry.json").read_text(encoding="utf-8"))
     assert isinstance(payload["servers"], list)
+
+
+def test_registry_rejects_duplicate_names(tmp_path):
+    payload = load_registry()
+    payload["servers"].append(dict(payload["servers"][0]))
+    path = tmp_path / "registry.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="duplicate server name"):
+        load_registry(path)
+
+
+def test_registry_rejects_installable_server_without_command(tmp_path):
+    payload = load_registry()
+    payload["servers"][0].pop("command", None)
+    path = tmp_path / "registry.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="requires a command"):
+        load_registry(path)
 
 
 def test_codex_writer_is_idempotent(tmp_path):
