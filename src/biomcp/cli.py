@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 from . import __version__
@@ -31,6 +33,27 @@ def _server_configs(names: list[str]) -> dict[str, dict]:
     return result
 
 
+def _atomic_write_text(path: Path, content: str) -> None:
+    """Replace a client config atomically while preserving existing permissions."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    mode = (path.stat().st_mode & 0o777) if path.exists() else 0o600
+    fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+    tmp = Path(tmp_name)
+    try:
+        os.fchmod(fd, mode)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            tmp.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+
 def _write_json(path: Path, servers: dict[str, dict]) -> None:
     data: dict = {}
     if path.exists():
@@ -41,8 +64,7 @@ def _write_json(path: Path, servers: dict[str, dict]) -> None:
     if not isinstance(block, dict):
         raise RuntimeError(f"Invalid mcpServers object: {path}")
     block.update(servers)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+    _atomic_write_text(path, json.dumps(data, indent=2) + "\n")
 
 
 def _write_codex(path: Path, servers: dict[str, dict]) -> None:
@@ -59,8 +81,7 @@ def _write_codex(path: Path, servers: dict[str, dict]) -> None:
             if existing and not existing.endswith("\n"):
                 existing += "\n"
             existing += "\n" + block
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(existing.rstrip() + "\n", encoding="utf-8")
+    _atomic_write_text(path, existing.rstrip() + "\n")
 
 
 def cmd_list(_: argparse.Namespace) -> int:
