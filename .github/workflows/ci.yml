@@ -15,8 +15,20 @@ jobs:
           python-version: "3.11"
       - run: python -m pip install -e '.[test]'
       - run: python -m pytest -q
+      - run: python -m biomcp --version
       - run: python -m biomcp list
-      - run: python -m biomcp install --servers bionuclei --clients generic --dry-run
+      - run: python -m biomcp install --servers bioimage,imagej,llm --clients generic --dry-run
+      - name: Smoke-test every installable server factory
+        run: |
+          python - <<'PY'
+          from biomcp_servers.bioimage import create_server as bioimage
+          from biomcp_servers.imagej import create_server as imagej
+          from biomcp_servers.llm import create_server as llm
+          for name, factory in [("bioimage", bioimage), ("imagej", imagej), ("llm", llm)]:
+              server = factory()
+              assert server is not None, name
+              print(f"{name}: factory initialized")
+          PY
 
   website:
     runs-on: ubuntu-latest
@@ -27,8 +39,9 @@ jobs:
         import json
         reg=json.loads(Path('biomcp/registry.json').read_text())
         assert reg['product']=='BioMCP'
-        assert (Path('docs/index.html')).is_file()
-        assert (Path('docs/install.html')).is_file()
-        assert (Path('docs/servers.html')).is_file()
+        names={x['name'] for x in reg['servers']}
+        assert {'bioimage','imagej','llm','bionuclei'} <= names
+        for path in ['docs/index.html','docs/install.html','docs/servers.html','docs/clients.html','docs/architecture.html','docs/examples.html','docs/contributing.html']:
+            assert Path(path).is_file(), path
         print('website and registry checks passed')
         PY
