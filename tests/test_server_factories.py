@@ -37,3 +37,13 @@ def test_llm_requires_credentials(monkeypatch):
     import pytest
     with pytest.raises(RuntimeError, match="API_KEY"):
         _headers()
+
+
+def test_llm_rejects_unsafe_base_urls(monkeypatch):
+    import pytest
+    from biomcp_servers.llm import _base
+
+    for value in ("file:///etc/passwd", "ftp://example.org/v1", "https://user:pass@example.org/v1"):
+        monkeypatch.setenv("BIOMCP_LLM_BASE_URL", value)
+        with pytest.raises(ValueError, match="HTTP\\(S\\) URL"):
+            _base()
