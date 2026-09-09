@@ -2,38 +2,36 @@
 
 **The open MCP platform for biology, bioinformatics, bioimaging, and scientific AI.**
 
-BioMCP follows the PowerMCP model: one installable distribution, one machine-readable registry, independent MCP servers, simple client configuration, diagnostics, tests, and a public documentation site. The registry is the source of truth for what is installable versus planned or externally provided. fileciteturn923file0L15-L59
+BioMCP follows a PowerMCP-style architecture: one installable distribution, one machine-readable registry, independent MCP servers, client configuration, diagnostics, tests, and a documentation site. The registry states what is installable, experimental, planned, or externally provided.
 
-## What is included
+## Server families
 
-### Bioimage
-Local image inspection, intensity summaries, and thresholding primitives.
+**BioImage** — local image inspection, intensity summaries, and thresholding primitives.
 
-### ImageJ / Fiji
-A local-process bridge for explicitly configured ImageJ/Fiji installations.
+**ImageJ / Fiji** — bridge to an explicitly configured local ImageJ/Fiji installation.
 
-### LLM
-An OpenAI-compatible model bridge using environment-provided credentials.
+**LLM** — OpenAI-compatible model access for agent workflows using environment-provided credentials.
 
-### BioNuclei
-A validated external scientific MCP server adapter. BioMCP does not duplicate BioNuclei's scientific implementation; it provides interoperability.
+**BioNuclei** — validated external scientific MCP adapter; BioMCP does not duplicate its scientific engine.
 
-## Install
+**CellProfiler** — planned adapter; not advertised as installable until an executable, tested integration exists.
+
+## Quick start
 
 ```bash
 pip install biomcp
 biomcp list
-biomcp install --servers bioimage,imagej,llm --clients generic
+biomcp install --servers bioimage --clients generic
 biomcp doctor
 ```
 
-For image analysis dependencies:
+Image-analysis dependencies:
 
 ```bash
 pip install 'biomcp[bioimage]'
 ```
 
-## Run a server
+## Launch servers
 
 ```bash
 biomcp run bioimage
@@ -41,34 +39,34 @@ biomcp run imagej
 biomcp run llm
 ```
 
-Each server is independently launchable over stdio, matching the modular server-factory pattern used in PowerMCP. fileciteturn943file0L7-L31
+Each server is independently launchable over stdio, following the modular server-factory pattern used by PowerMCP.
 
-## Configure AI clients
+## Configure AI hosts
 
 ```bash
-biomcp install --servers bioimage --clients claude-desktop
+biomcp install --servers bioimage,imagej,llm --clients claude-desktop
 biomcp install --servers bioimage,llm --clients codex
 ```
 
-Use `--dry-run` to inspect generated configuration before writing it.
+Use `--dry-run` to inspect changes before writing client configuration.
 
-## Environment
+## Local configuration
 
-`BIOMCP_IMAGEJ_EXECUTABLE` configures the ImageJ/Fiji executable.
+`BIOMCP_IMAGEJ_EXECUTABLE` points to ImageJ/Fiji.
 
-`BIOMCP_LLM_BASE_URL`, `BIOMCP_LLM_API_KEY`, and `BIOMCP_LLM_MODEL` configure the LLM bridge. `OPENAI_API_KEY` is accepted as a fallback API-key variable.
+`BIOMCP_LLM_BASE_URL`, `BIOMCP_LLM_API_KEY`, and `BIOMCP_LLM_MODEL` configure the LLM bridge. `OPENAI_API_KEY` is accepted as an API-key fallback.
 
 ## Scientific boundary
 
-BioMCP is an interoperability layer. It routes typed calls to scientific software and returns structured results. It does not invent benchmark results or silently change a model's weights. A server's validation state is explicit in `biomcp/registry.json`.
+BioMCP transports typed tool calls. It does not invent scientific measurements, benchmarks, or validation claims. Scientific computation remains under the authority of the underlying server.
 
 ## Website
 
-The public site is in `docs/` and is deployed by the Pages workflow.
+The product site lives in `docs/` and is published by GitHub Pages.
 
 ## Contributing
 
-A new integration should ship as an independently testable server, be registered in the machine-readable catalog, document installation/configuration, and declare its real validation status. PowerMCP follows the same server-per-domain and CI-import/startup discipline. fileciteturn932file0L1-L6
+A new integration needs an executable server, registry metadata, tests, documentation, client configuration, and an explicit validation state before being promoted to installable or validated.
 
 ## License
 
