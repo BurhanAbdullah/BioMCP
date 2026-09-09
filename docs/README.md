@@ -14,4 +14,10 @@ BioMCP is an open-source MCP platform for connecting LLM hosts to biology, bioin
 
 ## Current implementation
 
-The first installable server is BioNuclei. ImageJ/Fiji and CellProfiler are listed as planned adapters and are not presented as working MCP integrations until their server adapters and validation suites exist.
+- **BioImage Tools** — experimental and installable through the BioMCP package.
+- **ImageJ / Fiji** — experimental and installable when a local ImageJ/Fiji runtime is available.
+- **LLM Bridge** — experimental and installable; uses an OpenAI-compatible endpoint with credentials supplied through the environment.
+- **BioNuclei** — validated external adapter. BioMCP does not copy or reimplement the BioNuclei scientific engine; users obtain the external `bionuclei-mcp` server through its own release channel.
+- **CellProfiler** — planned; it remains non-installable until an executable adapter and validation suite exist.
+
+The machine-readable registry is authoritative for installation and validation state. External adapters are integration boundaries, not duplicated implementations.
