@@ -60,3 +60,10 @@ def test_codex_writer_is_idempotent(tmp_path):
     text = path.read_text(encoding="utf-8")
     assert text.count("[mcp_servers.biomcp_bioimage]") == 1
     assert text.count("command = \"biomcp-bioimage\"") == 1
+
+
+def test_packaged_registry_matches_source_registry():
+    root = Path(__file__).resolve().parents[1]
+    source = json.loads((root / "biomcp" / "registry.json").read_text(encoding="utf-8"))
+    packaged = json.loads((root / "src" / "biomcp" / "registry.json").read_text(encoding="utf-8"))
+    assert packaged == source
