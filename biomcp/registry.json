@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0",
+  "product": "BioMCP",
+  "servers": [
+    {
+      "name": "bionuclei",
+      "display_name": "BioNuclei",
+      "category": "bioimaging",
+      "status": "validated",
+      "installable": true,
+      "command": "bionuclei-mcp",
+      "transport": ["stdio", "streamable-http"],
+      "description": "Nuclear instance segmentation and derived bioimage measurements.",
+      "tools": ["inspect_image", "predict_image", "evaluate_image", "compute_instance_metrics", "read_provenance", "load_result_summary"]
+    },
+    {
+      "name": "imagej",
+      "display_name": "ImageJ / Fiji",
+      "category": "bioimaging",
+      "status": "planned",
+      "installable": false,
+      "description": "Planned adapter for validated ImageJ/Fiji operations."
+    },
+    {
+      "name": "cellprofiler",
+      "display_name": "CellProfiler",
+      "category": "bioimage-analysis",
+      "status": "planned",
+      "installable": false,
+      "description": "Planned adapter for validated CellProfiler pipelines."
+    }
+  ]
+}
