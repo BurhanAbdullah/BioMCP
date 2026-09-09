@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 from . import __version__
@@ -46,15 +46,21 @@ def _write_json(path: Path, servers: dict[str, dict]) -> None:
 
 
 def _write_codex(path: Path, servers: dict[str, dict]) -> None:
-    lines = []
-    if path.exists():
-        existing = path.read_text(encoding="utf-8").rstrip() + "\n\n"
-    else:
-        existing = ""
+    """Upsert BioMCP-managed Codex MCP blocks without duplicating them."""
+    existing = path.read_text(encoding="utf-8") if path.exists() else ""
     for name, cfg in servers.items():
-        lines.append(f"[mcp_servers.{name}]\ncommand = {json.dumps(cfg['command'])}\nargs = []\n")
+        block = f'[mcp_servers.{name}]\ncommand = {json.dumps(cfg["command"])}\nargs = []\n'
+        pattern = re.compile(
+            rf"(?ms)^\[mcp_servers\.{re.escape(name)}\]\n.*?(?=^\[|\Z)"
+        )
+        if pattern.search(existing):
+            existing = pattern.sub(block, existing, count=1)
+        else:
+            if existing and not existing.endswith("\n"):
+                existing += "\n"
+            existing += "\n" + block
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(existing + "\n".join(lines), encoding="utf-8")
+    path.write_text(existing.rstrip() + "\n", encoding="utf-8")
 
 
 def cmd_list(_: argparse.Namespace) -> int:
