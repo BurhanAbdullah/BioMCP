@@ -1,86 +1,75 @@
 # BioMCP
 
-**The MCP platform for biology, bioinformatics, and bioimaging.**
+**The open MCP platform for biology, bioinformatics, bioimaging, and scientific AI.**
 
-BioMCP gives LLM applications a clean, installable way to discover and use validated open-science tools. It is designed around the same principle as a good software toolkit: one package, one registry, simple client configuration, and explicit boundaries between AI orchestration and scientific computation.
+BioMCP follows the PowerMCP model: one installable distribution, one machine-readable registry, independent MCP servers, simple client configuration, diagnostics, tests, and a public documentation site. The registry is the source of truth for what is installable versus planned or externally provided. fileciteturn923file0L15-L59
 
-## Why BioMCP
+## What is included
 
-AI should be able to work with scientific software without every researcher hand-editing MCP configuration files or learning each server's internals.
+### Bioimage
+Local image inspection, intensity summaries, and thresholding primitives.
 
-BioMCP provides:
+### ImageJ / Fiji
+A local-process bridge for explicitly configured ImageJ/Fiji installations.
 
-- a machine-readable registry of scientific MCP servers;
-- one CLI for discovery, installation, configuration, and diagnostics;
-- generated configuration for common MCP clients;
-- stdio and remote-server support where the registered server provides it;
-- scientific provenance and validation status at the server boundary;
-- a clear distinction between **planned**, **experimental**, and **validated** integrations.
+### LLM
+An OpenAI-compatible model bridge using environment-provided credentials.
 
-## Quick start
+### BioNuclei
+A validated external scientific MCP server adapter. BioMCP does not duplicate BioNuclei's scientific implementation; it provides interoperability.
+
+## Install
 
 ```bash
 pip install biomcp
 biomcp list
+biomcp install --servers bioimage,imagej,llm --clients generic
 biomcp doctor
-biomcp install --yes
 ```
 
-The installer can configure the registered BioMCP servers for supported clients without requiring users to hand-edit JSON or TOML.
+For image analysis dependencies:
 
-## First server pack
-
-The first validated pack is **BioNuclei**, exposing deterministic bioimage-analysis tools through MCP. BioMCP does not replace BioNuclei's scientific implementation: it provides interoperability between an LLM host and the scientific server.
-
-## What an LLM sees
-
-```text
-Research question
-      ↓
-LLM / agent
-      ↓
-BioMCP discovery
-      ↓
-validated MCP server
-      ↓
-typed tool call
-      ↓
-scientific result + provenance
+```bash
+pip install 'biomcp[bioimage]'
 ```
 
-## CLI
+## Run a server
 
-```text
-biomcp list
-biomcp install [--servers ...] [--clients ...] [--dry-run]
-biomcp run <server>
-biomcp doctor
-biomcp config show
-biomcp config set <section.key> <value>
+```bash
+biomcp run bioimage
+biomcp run imagej
+biomcp run llm
 ```
 
-## Repository layout
+Each server is independently launchable over stdio, matching the modular server-factory pattern used in PowerMCP. fileciteturn943file0L7-L31
 
-```text
-src/biomcp/        platform CLI, registry, clients, runner
-src/bionuclei/     BioNuclei scientific engine and MCP server
-biomcp/            machine-readable registry and example configuration
-docs/              website and full product documentation
-tests/             automated validation
+## Configure AI clients
+
+```bash
+biomcp install --servers bioimage --clients claude-desktop
+biomcp install --servers bioimage,llm --clients codex
 ```
+
+Use `--dry-run` to inspect generated configuration before writing it.
+
+## Environment
+
+`BIOMCP_IMAGEJ_EXECUTABLE` configures the ImageJ/Fiji executable.
+
+`BIOMCP_LLM_BASE_URL`, `BIOMCP_LLM_API_KEY`, and `BIOMCP_LLM_MODEL` configure the LLM bridge. `OPENAI_API_KEY` is accepted as a fallback API-key variable.
 
 ## Scientific boundary
 
-BioMCP routes and transports tool calls. It does not invent measurements, benchmarks, or scientific conclusions. Each registered server remains responsible for its own executable scientific computation and provenance.
+BioMCP is an interoperability layer. It routes typed calls to scientific software and returns structured results. It does not invent benchmark results or silently change a model's weights. A server's validation state is explicit in `biomcp/registry.json`.
 
 ## Website
 
-Open the BioMCP product site from `docs/index.html` after enabling GitHub Pages for the `docs/` directory.
+The public site is in `docs/` and is deployed by the Pages workflow.
 
 ## Contributing
 
-See `docs/contributing.html` and the repository issue/PR templates. A new scientific integration must include a runnable server, machine-readable metadata, tests, documentation, and an explicit validation state before being promoted to `validated`.
+A new integration should ship as an independently testable server, be registered in the machine-readable catalog, document installation/configuration, and declare its real validation status. PowerMCP follows the same server-per-domain and CI-import/startup discipline. fileciteturn932file0L1-L6
 
 ## License
 
-MIT. See `LICENSE`.
+MIT.
