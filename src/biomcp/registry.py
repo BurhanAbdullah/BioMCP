@@ -23,8 +23,18 @@ def load_registry(path: Path | None = None) -> dict[str, Any]:
         if name in names:
             raise ValueError(f"BioMCP registry contains duplicate server name: {name}")
         names.append(name)
-        if entry.get("installable") is True and not entry.get("command"):
-            raise ValueError(f"Installable server {name} requires a command")
+
+        installable = entry.get("installable") is True
+        external = entry.get("external") is True
+        command = entry.get("command")
+        if installable and external:
+            raise ValueError(f"Server {name} cannot be both installable and external")
+        if installable and (not isinstance(command, str) or not command.strip()):
+            raise ValueError(f"Installable server {name} requires a non-empty command")
+
+        transport = entry.get("transport")
+        if not isinstance(transport, list) or not transport or not all(isinstance(x, str) and x.strip() for x in transport):
+            raise ValueError(f"Server {name} requires a non-empty transport list")
     return data
 
 
