@@ -48,7 +48,25 @@ def test_registry_rejects_installable_server_without_command(tmp_path):
     payload["servers"][0].pop("command", None)
     path = tmp_path / "registry.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
-    with pytest.raises(ValueError, match="requires a command"):
+    with pytest.raises(ValueError, match="requires a non-empty command"):
+        load_registry(path)
+
+
+def test_registry_rejects_installable_external_server(tmp_path):
+    payload = load_registry()
+    payload["servers"][0]["external"] = True
+    path = tmp_path / "registry.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="both installable and external"):
+        load_registry(path)
+
+
+def test_registry_rejects_missing_transport(tmp_path):
+    payload = load_registry()
+    payload["servers"][0].pop("transport", None)
+    path = tmp_path / "registry.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="transport list"):
         load_registry(path)
 
 
