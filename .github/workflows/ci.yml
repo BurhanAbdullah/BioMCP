@@ -68,14 +68,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python - <<'PY'
-        from pathlib import Path
-        import json
-        reg=json.loads(Path('biomcp/registry.json').read_text())
-        assert reg['product']=='BioMCP'
-        names={x['name'] for x in reg['servers']}
-        assert {'bioimage','imagej','llm','bionuclei'} <= names
-        for path in ['docs/index.html','docs/install.html','docs/servers.html','docs/clients.html','docs/architecture.html','docs/examples.html','docs/contributing.html']:
-            assert Path(path).is_file(), path
-        print('website and registry checks passed')
-        PY
+      - run: |
+          python - <<'PY'
+          from pathlib import Path
+          import json
+          reg=json.loads(Path('biomcp/registry.json').read_text())
+          assert reg['product']=='BioMCP'
+          names={x['name'] for x in reg['servers']}
+          assert {'bioimage','imagej','llm','bionuclei'} <= names
+          for path in ['docs/index.html','docs/install.html','docs/servers.html','docs/clients.html','docs/architecture.html','docs/examples.html','docs/contributing.html']:
+              assert Path(path).is_file(), path
+          print('website and registry checks passed')
+          PY
