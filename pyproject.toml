@@ -18,7 +18,7 @@ dependencies = ["mcp>=2,<3"]
 bioimage = ["numpy>=1.24", "tifffile>=2023", "scikit-image>=0.22"]
 imagej = ["pyimagej>=1.7"]
 llm = []
-test = ["pytest>=8,<9"]
+test = ["pytest>=8,<9", "numpy>=1.24", "tifffile>=2023", "scikit-image>=0.22"]
 all = ["numpy>=1.24", "tifffile>=2023", "scikit-image>=0.22", "pyimagej>=1.7", "pytest>=8,<9"]
 
 [project.scripts]
