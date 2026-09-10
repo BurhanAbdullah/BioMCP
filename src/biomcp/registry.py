@@ -32,8 +32,17 @@ def load_registry(path: Path | None = None) -> dict[str, Any]:
         if installable and (not isinstance(command, str) or not command.strip()):
             raise ValueError(f"Installable server {name} requires a non-empty command")
 
+        # Installable and explicitly external entries describe an executable
+        # MCP boundary and therefore must declare at least one transport.
+        # Planned/non-installable entries may intentionally omit transport
+        # until their adapter contract is defined; they must not be made
+        # executable merely to satisfy registry validation.
         transport = entry.get("transport")
-        if not isinstance(transport, list) or not transport or not all(isinstance(x, str) and x.strip() for x in transport):
+        if (installable or external) and (
+            not isinstance(transport, list)
+            or not transport
+            or not all(isinstance(x, str) and x.strip() for x in transport)
+        ):
             raise ValueError(f"Server {name} requires a non-empty transport list")
     return data
 
