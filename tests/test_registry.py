@@ -61,13 +61,24 @@ def test_registry_rejects_installable_external_server(tmp_path):
         load_registry(path)
 
 
-def test_registry_rejects_missing_transport(tmp_path):
+def test_registry_rejects_missing_transport_for_executable_entry(tmp_path):
     payload = load_registry()
     payload["servers"][0].pop("transport", None)
     path = tmp_path / "registry.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(ValueError, match="transport list"):
         load_registry(path)
+
+
+def test_planned_non_installable_entry_may_omit_transport(tmp_path):
+    payload = load_registry()
+    planned = next(entry for entry in payload["servers"] if entry["name"] == "cellprofiler")
+    assert planned["installable"] is False
+    assert "transport" not in planned
+    path = tmp_path / "registry.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    loaded = load_registry(path)
+    assert next(entry for entry in loaded["servers"] if entry["name"] == "cellprofiler")["status"] == "planned"
 
 
 def test_codex_writer_is_idempotent(tmp_path):
