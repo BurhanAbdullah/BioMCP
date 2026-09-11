@@ -30,11 +30,18 @@ def _load_image(path: Path):
     max_elements = int(os.getenv("BIOMCP_MAX_IMAGE_ELEMENTS", str(100_000_000)))
     if max_elements <= 0:
         raise ValueError("BIOMCP_MAX_IMAGE_ELEMENTS must be positive")
+    max_decoded_bytes = int(
+        os.getenv("BIOMCP_MAX_DECODED_BYTES", str(512 * 1024**2))
+    )
+    if max_decoded_bytes <= 0:
+        raise ValueError("BIOMCP_MAX_DECODED_BYTES must be positive")
 
     # Inspect TIFF metadata before decompression so a highly compressed file
-    # cannot expand into an unexpectedly large in-memory array.
+    # cannot expand into an unexpectedly large in-memory array. Both element
+    # count and decoded byte size are bounded because dtype width varies.
     with tifffile.TiffFile(path) as tif:
-        shape = tif.series[0].shape
+        series = tif.series[0]
+        shape = series.shape
         elements = 1
         for dimension in shape:
             elements *= int(dimension)
@@ -42,6 +49,13 @@ def _load_image(path: Path):
             raise ValueError(
                 f"Image contains {elements} elements; exceeds "
                 "BIOMCP_MAX_IMAGE_ELEMENTS"
+            )
+        dtype = np.dtype(series.dtype)
+        decoded_bytes = elements * dtype.itemsize
+        if decoded_bytes > max_decoded_bytes:
+            raise ValueError(
+                f"Decoded image requires {decoded_bytes} bytes; exceeds "
+                "BIOMCP_MAX_DECODED_BYTES"
             )
 
     return np.asarray(tifffile.imread(path))
