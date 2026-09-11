@@ -17,6 +17,11 @@ async def _list_tools(module: str) -> list[str]:
             return [tool.name for tool in result.tools]
 
 
+def test_bioimage_stdio_protocol_exposes_tools():
+    names = asyncio.run(_list_tools("biomcp_servers.bioimage"))
+    assert names == ["inspect_image", "intensity_summary", "threshold_image"]
+
+
 def test_imagej_stdio_protocol_exposes_tools():
     names = asyncio.run(_list_tools("biomcp_servers.imagej"))
     assert names == ["imagej_status", "run_macro"]
