@@ -61,13 +61,13 @@ def _request(path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]
                 raise RuntimeError("LLM response exceeds BIOMCP_LLM_MAX_RESPONSE_BYTES")
             return json.loads(body.decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        # Never echo a provider response body: it can contain prompts, model
-        # metadata, request identifiers, or provider-specific secrets.
+        # Provider bodies can contain prompts, identifiers, or other sensitive
+        # data. Expose only the HTTP status to the MCP caller.
         raise RuntimeError(f"LLM HTTP {exc.code}") from exc
     except (urllib.error.URLError, TimeoutError, socket.timeout) as exc:
-        reason = getattr(exc, "reason", None)
-        detail = str(reason) if reason else "request timed out or endpoint was unavailable"
-        raise RuntimeError(f"LLM endpoint unavailable: {detail[:200]}") from exc
+        # Do not expose urllib/socket reason strings because they are outside
+        # BioMCP's control and may contain endpoint or credential material.
+        raise RuntimeError("LLM endpoint unavailable or request timed out") from exc
 
 
 def create_server() -> MCPServer:
