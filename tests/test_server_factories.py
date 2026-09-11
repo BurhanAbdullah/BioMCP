@@ -30,6 +30,36 @@ def test_imagej_macro_requires_configured_executable(monkeypatch, tmp_path):
     assert server is not None
 
 
+def test_imagej_timeout_is_structured_and_child_env_is_sanitized(monkeypatch, tmp_path):
+    monkeypatch.setenv("BIOMCP_IMAGEJ_EXECUTABLE", "/usr/bin/fiji")
+    monkeypatch.setenv("BIOMCP_LLM_API_KEY", "do-not-leak")
+    monkeypatch.setenv("OPENAI_API_KEY", "do-not-leak")
+    monkeypatch.setenv("IMAGEJ_SAFE_OPTION", "keep")
+    image = tmp_path / "image.tif"
+    macro = tmp_path / "macro.ijm"
+    image.write_bytes(b"x")
+    macro.write_text("print('x');", encoding="utf-8")
+
+    import subprocess
+    from biomcp_servers import imagej
+
+    seen = {}
+
+    def fake_run(*args, **kwargs):
+        seen["env"] = kwargs["env"]
+        raise subprocess.TimeoutExpired(cmd=args[0], timeout=kwargs["timeout"], output="partial", stderr="err")
+
+    monkeypatch.setattr(imagej.subprocess, "run", fake_run)
+    result = imagej.create_server()
+    tool = next(tool for tool in result._tool_manager.list_tools() if tool.name == "run_macro")
+    value = tool.fn(str(image), str(macro), 3)
+    assert value["timed_out"] is True
+    assert value["returncode"] is None
+    assert seen["env"]["IMAGEJ_SAFE_OPTION"] == "keep"
+    assert "BIOMCP_LLM_API_KEY" not in seen["env"]
+    assert "OPENAI_API_KEY" not in seen["env"]
+
+
 def test_llm_requires_credentials(monkeypatch):
     monkeypatch.delenv("BIOMCP_LLM_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
