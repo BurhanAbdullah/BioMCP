@@ -92,7 +92,7 @@ jobs:
           for path in ['docs/index.html','docs/install.html','docs/servers.html','docs/clients.html','docs/architecture.html','docs/examples.html','docs/contributing.html']:
               assert Path(path).is_file(), path
           clients = Path('docs/clients.html').read_text(encoding='utf-8')
-          assert '--clients claude-code' not in clients
-          assert '--clients codex' in clients
+          assert 'biomcp install --servers bioimage,llm --clients claude-code' not in clients
+          assert 'biomcp install --servers bioimage,llm --clients codex' in clients
           print('website, client documentation, and registry checks passed')
           PY
