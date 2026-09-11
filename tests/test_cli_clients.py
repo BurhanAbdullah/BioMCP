@@ -41,5 +41,5 @@ def test_install_writes_idempotent_codex_config(monkeypatch, tmp_path):
 
     assert second == first
     assert second.count("[mcp_servers.biomcp_bioimage]") == 1
-    assert 'command = "python"' in second
+    assert 'command = "biomcp-bioimage"' in second
     assert "args = []" in second
