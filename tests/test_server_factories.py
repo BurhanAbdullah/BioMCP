@@ -19,6 +19,19 @@ def test_bioimage_rejects_invalid_element_limit(monkeypatch, tmp_path):
         _load_image(path)
 
 
+def test_bioimage_rejects_decoded_byte_limit(monkeypatch, tmp_path):
+    import numpy as np
+    import pytest
+    import tifffile
+    from biomcp_servers.bioimage import _load_image
+
+    path = tmp_path / "image.tif"
+    tifffile.imwrite(path, np.array([[1, 2], [3, 4]], dtype=np.uint16))
+    monkeypatch.setenv("BIOMCP_MAX_DECODED_BYTES", "7")
+    with pytest.raises(ValueError, match="BIOMCP_MAX_DECODED_BYTES"):
+        _load_image(path)
+
+
 def test_imagej_macro_requires_configured_executable(monkeypatch, tmp_path):
     monkeypatch.delenv("BIOMCP_IMAGEJ_EXECUTABLE", raising=False)
     monkeypatch.delenv("IMAGEJ_EXECUTABLE", raising=False)
