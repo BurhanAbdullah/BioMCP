@@ -74,3 +74,44 @@ def test_llm_rejects_unsafe_base_urls(monkeypatch):
         monkeypatch.setenv("BIOMCP_LLM_BASE_URL", value)
         with pytest.raises(ValueError, match="HTTP\\(S\\) URL"):
             _base()
+
+
+def test_llm_http_errors_do_not_echo_provider_body(monkeypatch):
+    import urllib.error
+    import pytest
+    from biomcp_servers import llm
+
+    monkeypatch.setenv("BIOMCP_LLM_API_KEY", "secret")
+
+    class FakeOpener:
+        def open(self, *args, **kwargs):
+            raise urllib.error.HTTPError(
+                url="https://example.org/v1/models",
+                code=401,
+                msg="Unauthorized",
+                hdrs=None,
+                fp=None,
+            )
+
+    monkeypatch.setattr(llm, "_NO_REDIRECT_OPENER", FakeOpener())
+    with pytest.raises(RuntimeError, match=r"LLM HTTP 401") as excinfo:
+        llm._request("models")
+    assert "Unauthorized" not in str(excinfo.value)
+    assert "secret" not in str(excinfo.value)
+
+
+def test_llm_timeout_is_sanitized(monkeypatch):
+    import socket
+    import pytest
+    from biomcp_servers import llm
+
+    monkeypatch.setenv("BIOMCP_LLM_API_KEY", "secret")
+
+    class FakeOpener:
+        def open(self, *args, **kwargs):
+            raise socket.timeout("sensitive socket details")
+
+    monkeypatch.setattr(llm, "_NO_REDIRECT_OPENER", FakeOpener())
+    with pytest.raises(RuntimeError, match="LLM endpoint unavailable") as excinfo:
+        llm._request("models")
+    assert "secret" not in str(excinfo.value)
