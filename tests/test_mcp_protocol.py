@@ -20,17 +20,18 @@ async def _list_tools(module: str) -> list[str]:
             return [tool.name for tool in result.tools]
 
 
-async def _call_tool(module: str, name: str, arguments: dict) -> object:
+async def _call_tool(module: str, name: str, arguments: dict, env: dict[str, str] | None = None) -> object:
     params = StdioServerParameters(
         command=sys.executable,
         args=["-m", module],
+        env=env,
     )
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
             result = await session.call_tool(name, arguments)
             assert not result.is_error
-            return result.structuredContent
+            return result.structured_content
 
 
 def test_bioimage_stdio_protocol_exposes_tools():
@@ -93,6 +94,11 @@ def test_llm_stdio_protocol_calls_tool_against_local_endpoint(monkeypatch):
                 "biomcp_servers.llm",
                 "complete",
                 {"prompt": "hello", "model": "test-model"},
+                env={
+                    **__import__("os").environ,
+                    "BIOMCP_LLM_BASE_URL": f"http://127.0.0.1:{server.server_port}/v1",
+                    "BIOMCP_LLM_API_KEY": "test-key",
+                },
             )
         )
         assert result == {"id": "resp-test", "output": []}
