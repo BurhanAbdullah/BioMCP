@@ -31,6 +31,33 @@ def _child_env() -> dict[str, str]:
     }
 
 
+def _run_macro(binary: str, image: Path, macro: Path, timeout_seconds: int) -> dict[str, Any]:
+    try:
+        p = subprocess.run(
+            [binary, "--headless", "--run", str(macro), str(image)],
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+            env=_child_env(),
+        )
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout or ""
+        stderr = exc.stderr or ""
+        return {
+            "returncode": None,
+            "timed_out": True,
+            "stdout": str(stdout)[-12000:],
+            "stderr": str(stderr)[-12000:],
+        }
+    return {
+        "returncode": p.returncode,
+        "timed_out": False,
+        "stdout": p.stdout[-12000:],
+        "stderr": p.stderr[-12000:],
+    }
+
+
 def create_server() -> MCPServer:
     mcp = MCPServer("BioMCP-ImageJ")
 
@@ -54,30 +81,7 @@ def create_server() -> MCPServer:
             raise FileNotFoundError(str(macro))
         if not 1 <= timeout_seconds <= 900:
             raise ValueError("timeout_seconds must be 1..900")
-        try:
-            p = subprocess.run(
-                [binary, "--headless", "--run", str(macro), str(image)],
-                capture_output=True,
-                text=True,
-                timeout=timeout_seconds,
-                check=False,
-                env=_child_env(),
-            )
-        except subprocess.TimeoutExpired as exc:
-            stdout = exc.stdout or ""
-            stderr = exc.stderr or ""
-            return {
-                "returncode": None,
-                "timed_out": True,
-                "stdout": str(stdout)[-12000:],
-                "stderr": str(stderr)[-12000:],
-            }
-        return {
-            "returncode": p.returncode,
-            "timed_out": False,
-            "stdout": p.stdout[-12000:],
-            "stderr": p.stderr[-12000:],
-        }
+        return _run_macro(binary, image, macro, timeout_seconds)
     return mcp
 
 
