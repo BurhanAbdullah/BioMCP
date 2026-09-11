@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -86,7 +87,8 @@ def test_llm_stdio_protocol_calls_tool_against_local_endpoint(monkeypatch):
     server = HTTPServer(("127.0.0.1", 0), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    monkeypatch.setenv("BIOMCP_LLM_BASE_URL", f"http://127.0.0.1:{server.server_port}/v1")
+    base_url = f"http://127.0.0.1:{server.server_port}/v1"
+    monkeypatch.setenv("BIOMCP_LLM_BASE_URL", base_url)
     monkeypatch.setenv("BIOMCP_LLM_API_KEY", "test-key")
     try:
         result = asyncio.run(
@@ -95,8 +97,8 @@ def test_llm_stdio_protocol_calls_tool_against_local_endpoint(monkeypatch):
                 "complete",
                 {"prompt": "hello", "model": "test-model"},
                 env={
-                    **__import__("os").environ,
-                    "BIOMCP_LLM_BASE_URL": f"http://127.0.0.1:{server.server_port}/v1",
+                    **os.environ,
+                    "BIOMCP_LLM_BASE_URL": base_url,
                     "BIOMCP_LLM_API_KEY": "test-key",
                 },
             )
