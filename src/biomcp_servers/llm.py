@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -60,10 +61,13 @@ def _request(path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]
                 raise RuntimeError("LLM response exceeds BIOMCP_LLM_MAX_RESPONSE_BYTES")
             return json.loads(body.decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        detail = exc.read(2001).decode(errors="replace")
-        raise RuntimeError(f"LLM HTTP {exc.code}: {detail[:2000]}") from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError(f"LLM endpoint unavailable: {exc.reason}") from exc
+        # Never echo a provider response body: it can contain prompts, model
+        # metadata, request identifiers, or provider-specific secrets.
+        raise RuntimeError(f"LLM HTTP {exc.code}") from exc
+    except (urllib.error.URLError, TimeoutError, socket.timeout) as exc:
+        reason = getattr(exc, "reason", None)
+        detail = str(reason) if reason else "request timed out or endpoint was unavailable"
+        raise RuntimeError(f"LLM endpoint unavailable: {detail[:200]}") from exc
 
 
 def create_server() -> MCPServer:
