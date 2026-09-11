@@ -26,7 +26,7 @@ async def _call_tool(module: str, name: str, arguments: dict) -> object:
         async with ClientSession(read, write) as session:
             await session.initialize()
             result = await session.call_tool(name, arguments)
-            assert not result.isError
+            assert not result.is_error
             return result.structuredContent
 
 
