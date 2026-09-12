@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -16,10 +17,23 @@ from .registry import get_server, installable_servers, load_registry
 
 
 def _client_paths() -> dict[str, Path]:
+    """Return platform-appropriate configuration paths for supported clients."""
     home = Path.home()
+    if sys.platform == "darwin":
+        claude = home / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
+    elif os.name == "nt":
+        appdata = os.environ.get("APPDATA")
+        if not appdata:
+            raise RuntimeError("APPDATA is required to configure Claude Desktop on Windows")
+        claude = Path(appdata) / "Claude" / "claude_desktop_config.json"
+    else:
+        claude = home / ".config" / "Claude" / "claude_desktop_config.json"
+
+    config_root = os.environ.get("XDG_CONFIG_HOME")
+    generic_root = Path(config_root) if config_root else home / ".config"
     return {
-        "generic": home / ".config" / "biomcp" / "mcp.json",
-        "claude-desktop": home / ".config" / "Claude" / "claude_desktop_config.json",
+        "generic": generic_root / "biomcp" / "mcp.json",
+        "claude-desktop": claude,
     }
 
 
