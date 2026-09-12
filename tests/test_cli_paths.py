@@ -12,39 +12,33 @@ import biomcp.cli as cli
         ("darwin", "posix", ("Library", "Application Support", "Claude", "claude_desktop_config.json")),
     ],
 )
-def test_claude_desktop_path_is_platform_specific(monkeypatch, tmp_path, platform, os_name, expected):
-    monkeypatch.setattr(cli.sys, "platform", platform)
-    monkeypatch.setattr(cli.os, "name", os_name)
-    monkeypatch.setattr(Path, "home", lambda: tmp_path)
-
-    path = cli._client_paths()["claude-desktop"]
+def test_claude_desktop_path_is_platform_specific(tmp_path, platform, os_name, expected):
+    path = cli._client_paths(platform=platform, os_name=os_name, home=tmp_path)["claude-desktop"]
     assert path == tmp_path.joinpath(*expected)
 
 
 def test_claude_desktop_windows_uses_appdata(monkeypatch, tmp_path):
-    monkeypatch.setattr(cli.sys, "platform", "win32")
-    monkeypatch.setattr(cli.os, "name", "nt")
     monkeypatch.setenv("APPDATA", str(tmp_path / "AppData"))
-    monkeypatch.setattr(Path, "home", lambda: tmp_path / "Home")
 
-    path = cli._client_paths()["claude-desktop"]
+    path = cli._client_paths(
+        platform="win32",
+        os_name="nt",
+        home=tmp_path / "Home",
+        path_cls=Path,
+    )["claude-desktop"]
     assert path == tmp_path / "AppData" / "Claude" / "claude_desktop_config.json"
 
 
 def test_claude_desktop_windows_requires_appdata(monkeypatch, tmp_path):
-    monkeypatch.setattr(cli.sys, "platform", "win32")
-    monkeypatch.setattr(cli.os, "name", "nt")
     monkeypatch.delenv("APPDATA", raising=False)
-    monkeypatch.setattr(Path, "home", lambda: tmp_path)
 
     with pytest.raises(RuntimeError, match="APPDATA is required"):
-        cli._client_paths()
+        cli._client_paths(platform="win32", os_name="nt", home=tmp_path)
 
 
 def test_generic_path_honors_xdg_config_home(monkeypatch, tmp_path):
-    monkeypatch.setattr(cli.sys, "platform", "linux")
-    monkeypatch.setattr(cli.os, "name", "posix")
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
-    monkeypatch.setattr(Path, "home", lambda: tmp_path / "Home")
 
-    assert cli._client_paths()["generic"] == tmp_path / "xdg" / "biomcp" / "mcp.json"
+    assert cli._client_paths(
+        platform="linux", os_name="posix", home=tmp_path / "Home"
+    )["generic"] == tmp_path / "xdg" / "biomcp" / "mcp.json"
