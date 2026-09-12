@@ -1,11 +1,12 @@
 import json
 from pathlib import Path
 
+import biomcp.cli as cli
 from biomcp.cli import main
 
 
 def test_install_writes_generic_and_claude_configs(monkeypatch, tmp_path):
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(cli.Path, "home", lambda: tmp_path)
 
     assert main(
         [
@@ -27,7 +28,7 @@ def test_install_writes_generic_and_claude_configs(monkeypatch, tmp_path):
 
 
 def test_install_writes_idempotent_codex_config(monkeypatch, tmp_path):
-    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setattr(cli.Path, "home", lambda: tmp_path)
 
     assert main(
         ["install", "--servers", "bioimage", "--clients", "codex"]
