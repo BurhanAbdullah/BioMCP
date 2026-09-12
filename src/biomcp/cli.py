@@ -16,21 +16,23 @@ from .config import show as show_config, set_value
 from .registry import get_server, installable_servers, load_registry
 
 
-def _client_paths() -> dict[str, Path]:
+def _client_paths(*, platform: str | None = None, os_name: str | None = None, home: Path | None = None, path_cls=Path) -> dict[str, Path]:
     """Return platform-appropriate configuration paths for supported clients."""
-    home = Path.home()
-    if sys.platform == "darwin":
+    platform = sys.platform if platform is None else platform
+    os_name = os.name if os_name is None else os_name
+    home = Path.home() if home is None else home
+    if platform == "darwin":
         claude = home / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
-    elif os.name == "nt":
+    elif os_name == "nt":
         appdata = os.environ.get("APPDATA")
         if not appdata:
             raise RuntimeError("APPDATA is required to configure Claude Desktop on Windows")
-        claude = Path(appdata) / "Claude" / "claude_desktop_config.json"
+        claude = path_cls(appdata) / "Claude" / "claude_desktop_config.json"
     else:
         claude = home / ".config" / "Claude" / "claude_desktop_config.json"
 
     config_root = os.environ.get("XDG_CONFIG_HOME")
-    generic_root = Path(config_root) if config_root else home / ".config"
+    generic_root = path_cls(config_root) if config_root else home / ".config"
     return {
         "generic": generic_root / "biomcp" / "mcp.json",
         "claude-desktop": claude,
