@@ -7,6 +7,9 @@ from biomcp.cli import main
 
 def test_install_writes_generic_and_claude_configs(monkeypatch, tmp_path):
     monkeypatch.setattr(cli.Path, "home", lambda: tmp_path)
+    # The test exercises the documented fallback to $HOME/.config.  CI hosts
+    # may define XDG_CONFIG_HOME independently of the patched home directory.
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
 
     assert main(
         [
