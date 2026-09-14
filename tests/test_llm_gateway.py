@@ -50,10 +50,17 @@ def test_capability_boundaries_are_enforced():
         provider.build_request(model="m", input="x", response_format={"type": "json_schema"})
     with pytest.raises(RuntimeError, match="tool_calling"):
         provider.build_request(model="m", input="x", tools=[{"type": "function"}])
+    with pytest.raises(RuntimeError, match="structured_output"):
+        provider.chat(model="m", messages=[], response_format={"type": "json_schema"})
+    with pytest.raises(RuntimeError, match="tool_calling"):
+        provider.chat(model="m", messages=[], tools=[{"type": "function"}])
 
 
 def test_chat_request_is_openai_compatible(monkeypatch):
-    provider = OpenAICompatibleProvider(ProviderConfig("test", "http://127.0.0.1:9000/v1"))
+    provider = OpenAICompatibleProvider(ProviderConfig(
+        "test", "http://127.0.0.1:9000/v1",
+        capabilities=ProviderCapabilities(structured_output=True, tool_calling=True),
+    ))
     seen = {}
 
     def fake_request(path, payload=None, **kwargs):
@@ -62,11 +69,20 @@ def test_chat_request_is_openai_compatible(monkeypatch):
         return {"id": "chat-1"}
 
     monkeypatch.setattr(provider, "request", fake_request)
-    result = provider.chat(model="m", messages=[{"role": "user", "content": "hello"}], temperature=0.1, max_tokens=32)
+    result = provider.chat(
+        model="m",
+        messages=[{"role": "user", "content": "hello"}],
+        temperature=0.1,
+        max_tokens=32,
+        response_format={"type": "json_schema", "json_schema": {"name": "answer"}},
+        tools=[{"type": "function", "function": {"name": "inspect_image"}}],
+    )
     assert result == {"id": "chat-1"}
     assert seen["path"] == "chat/completions"
     assert seen["payload"]["messages"][0]["content"] == "hello"
     assert seen["payload"]["max_tokens"] == 32
+    assert seen["payload"]["response_format"]["type"] == "json_schema"
+    assert seen["payload"]["tools"][0]["function"]["name"] == "inspect_image"
 
 
 class _FakeResponse:
