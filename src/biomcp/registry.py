@@ -11,7 +11,16 @@ REGISTRY_PATH = _REPO_REGISTRY if _REPO_REGISTRY.is_file() else _PACKAGED_REGIST
 
 _ALLOWED_STATUS = {"planned", "experimental", "validated", "deprecated"}
 _ALLOWED_TRANSPORTS = {"stdio", "streamable-http", "sse"}
-_ALLOWED_CAPABILITIES = {"model_discovery", "chat", "responses", "streaming", "structured_output", "tool_calling"}
+_ALLOWED_CAPABILITIES = {
+    "model_discovery",
+    "chat",
+    "responses",
+    "streaming",
+    "structured_output",
+    "tool_calling",
+    "mcp_capability_discovery",
+    "mcp_tool_execution",
+}
 
 
 def load_registry(path: Path | None = None) -> dict[str, Any]:
