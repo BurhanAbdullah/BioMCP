@@ -1,8 +1,9 @@
 """BioMCP model runtime MCP server.
 
-The MCP surface exposes model discovery and generation while provider
-transport, capability metadata and request validation live in
-``biomcp.llm``.
+The MCP surface exposes model discovery, generation, and an explicitly
+allowlisted downstream MCP tool broker. Provider transport and capability
+metadata remain in ``biomcp.llm`` while downstream scientific engines stay
+independent from the gateway.
 """
 from __future__ import annotations
 
@@ -12,6 +13,7 @@ from typing import Any
 from mcp.server.mcpserver import MCPServer
 
 from biomcp.llm import OpenAICompatibleProvider
+from biomcp.mcp_broker import MCPToolBroker, broker_config_from_environment
 
 
 def create_server() -> MCPServer:
@@ -55,6 +57,18 @@ def create_server() -> MCPServer:
             temperature=temperature,
             max_output_tokens=max_output_tokens,
         )
+
+    @mcp.tool()
+    def mcp_capabilities() -> dict[str, Any]:
+        """Discover the explicitly allowlisted downstream MCP tool surface."""
+        broker = MCPToolBroker(broker_config_from_environment())
+        return {"tools": broker.list_tools()}
+
+    @mcp.tool()
+    def mcp_call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Invoke one explicitly allowlisted downstream MCP tool."""
+        broker = MCPToolBroker(broker_config_from_environment())
+        return broker.call_tool(name, arguments)
 
     return mcp
 
