@@ -27,6 +27,22 @@ jobs:
       - run: python -m biomcp --version
       - run: python -m biomcp list
       - run: python -m biomcp install --servers bioimage,imagej,llm --clients generic --dry-run
+      - name: Validate registry contract and source/package consistency
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from biomcp.registry import load_registry
+
+          root = json.loads(Path('biomcp/registry.json').read_text(encoding='utf-8'))
+          packaged = json.loads(Path('src/biomcp/registry.json').read_text(encoding='utf-8'))
+          assert root == packaged, 'root and packaged registries differ'
+          data = load_registry()
+          installable = {x['name'] for x in data['servers'] if x['installable']}
+          assert installable == {'bioimage', 'imagej', 'llm'}
+          assert {'pymol', 'cellprofiler', 'blastplus'} <= {x['name'] for x in data['servers']}
+          print('registry contract and consistency checks passed')
+          PY
       - name: Smoke-test every installable server factory
         run: |
           python - <<'PY'
@@ -37,6 +53,7 @@ jobs:
               server = factory()
               assert server is not None, name
               print(f"{name}: factory initialized")
+          PY
       - if: matrix.python-version == '3.11'
         run: python -m build
 
@@ -89,14 +106,16 @@ jobs:
           python - <<'PY'
           from pathlib import Path
           import json
-          reg=json.loads(Path('biomcp/registry.json').read_text())
-          assert reg['product']=='BioMCP'
-          names={x['name'] for x in reg['servers']}
-          assert {'bioimage','imagej','llm','bionuclei'} <= names
+          root=json.loads(Path('biomcp/registry.json').read_text())
+          packaged=json.loads(Path('src/biomcp/registry.json').read_text())
+          assert root == packaged, 'website and packaged registries must match'
+          assert root['product']=='BioMCP'
+          names={x['name'] for x in root['servers']}
+          assert {'bioimage','imagej','llm','bionuclei','pymol','cellprofiler','blastplus'} <= names
           for path in ['docs/index.html','docs/install.html','docs/servers.html','docs/clients.html','docs/architecture.html','docs/examples.html','docs/contributing.html']:
               assert Path(path).is_file(), path
           clients = Path('docs/clients.html').read_text(encoding='utf-8')
           assert 'biomcp install --servers bioimage,llm --clients claude-code' not in clients
           assert 'biomcp install --servers bioimage,llm --clients codex' in clients
-          print('website, client documentation, and registry checks passed')
+          print('website, client documentation, registry consistency, and lifecycle checks passed')
           PY
