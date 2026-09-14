@@ -79,8 +79,23 @@ biomcp run llm
 ### BioNuclei — external validated adapter
 BioMCP can expose the independent BioNuclei MCP server without copying its scientific engine into this repository. Scientific implementation and validation remain under BioNuclei's authority.
 
-### CellProfiler — planned
-A future adapter, intentionally not presented as installable until an executable and tested integration exists.
+## Open-source integration expansion
+
+BioMCP will grow into a **registry-driven ecosystem of adapters** for open scientific software. We will not pretend that every project is supported on day one. New integrations become installable only after executable implementation, tests, security controls, documentation, packaging, and CI evidence exist.
+
+### v0.3 — first three new integrations
+
+1. **PyMOL** — molecular visualization and structural-biology workflows.
+2. **CellProfiler** — reproducible bioimage-analysis pipelines.
+3. **BLAST+** — local sequence-similarity analysis.
+
+These are initially catalogued as **planned**. Their registry state will move to experimental and then validated only when the corresponding adapters pass the project gates.
+
+### v0.4+ — expansion candidates
+
+The roadmap includes Napari, QuPath, Cellpose, ilastik, UCSF ChimeraX, VMD, RDKit, OpenMM, GROMACS, Biopython, HMMER, samtools, bcftools, BWA, Bowtie2, STAR, FreeBayes, Nextflow, Snakemake, and additional open scientific tools selected by community demand and technical fit.
+
+See [`docs/integrations.md`](docs/integrations.md) for the phased integration contract and lifecycle.
 
 ## Quick start
 
@@ -175,7 +190,7 @@ These layers are complementary. Future layers are explicitly marked as research 
 
 ## Roadmap
 
-### Near term
+### Platform engineering
 
 - strengthen resource and decompression limits for image handling;
 - harden ImageJ/Fiji subprocess timeouts and environment isolation;
@@ -185,10 +200,8 @@ These layers are complementary. Future layers are explicitly marked as research 
 
 ### Ecosystem
 
-- PyMOL interoperability;
-- CellProfiler integration;
-- BLAST/sequence-analysis integration;
-- reproducible workflow engines such as Nextflow;
+- deliver the v0.3 PyMOL, CellProfiler and BLAST+ adapters;
+- expand into workflow, structural-biology, pathology, microscopy and sequence-analysis ecosystems;
 - configuration templates for major MCP-capable AI hosts;
 - benchmark suites for tool selection, reliability, protocol compliance and evidence fidelity.
 
