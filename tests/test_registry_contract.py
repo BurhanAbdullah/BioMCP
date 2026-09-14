@@ -19,7 +19,10 @@ def test_registry_is_valid_and_has_expected_lifecycle_entries():
 
     llm = next(entry for entry in data["servers"] if entry["name"] == "llm")
     assert {"openai-compatible", "ollama", "vllm"} == set(llm["providers"])
-    assert {"model_discovery", "streaming", "structured_output", "tool_calling"} <= set(llm["capabilities"])
+    assert {"model_discovery", "streaming", "structured_output", "tool_calling", "mcp_capability_discovery", "mcp_tool_execution"} <= set(llm["capabilities"])
+    assert {"mcp_capabilities", "mcp_call_tool"} <= set(llm["tools"])
+    assert "BIOMCP_MCP_ALLOWED_EXECUTABLES" in llm["config"]
+    assert "BIOMCP_MCP_ALLOWED_TOOLS" in llm["config"]
 
 
 def test_duplicate_registry_names_are_rejected(tmp_path: Path):
