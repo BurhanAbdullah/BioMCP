@@ -1,4 +1,8 @@
-from biomcp.llm import OpenAICompatibleProvider, ProviderConfig, builtin_providers
+import io
+
+import pytest
+
+from biomcp.llm import OpenAICompatibleProvider, ProviderConfig, ProviderCapabilities, builtin_providers
 
 
 def test_builtin_provider_profiles_do_not_store_credentials():
@@ -19,7 +23,10 @@ def test_provider_capabilities_are_explicit():
 
 
 def test_request_builder_preserves_structured_and_tool_controls():
-    provider = OpenAICompatibleProvider(ProviderConfig("test", "http://127.0.0.1:9000/v1"))
+    provider = OpenAICompatibleProvider(ProviderConfig(
+        "test", "http://127.0.0.1:9000/v1",
+        capabilities=ProviderCapabilities(streaming=True, structured_output=True, tool_calling=True),
+    ))
     payload = provider.build_request(
         model="local-model",
         input=[{"role": "user", "content": "measure nuclei"}],
@@ -37,13 +44,86 @@ def test_request_builder_preserves_structured_and_tool_controls():
     assert payload["max_output_tokens"] == 256
 
 
+def test_capability_boundaries_are_enforced():
+    provider = OpenAICompatibleProvider(ProviderConfig(
+        "ollama", "http://127.0.0.1:11434/v1", capabilities=ProviderCapabilities(streaming=True)
+    ))
+    with pytest.raises(RuntimeError, match="structured_output"):
+        provider.build_request(model="m", input="x", response_format={"type": "json_schema"})
+    with pytest.raises(RuntimeError, match="tool_calling"):
+        provider.build_request(model="m", input="x", tools=[{"type": "function"}])
+
+
+def test_chat_request_is_openai_compatible(monkeypatch):
+    provider = OpenAICompatibleProvider(ProviderConfig("test", "http://127.0.0.1:9000/v1"))
+    seen = {}
+
+    def fake_request(path, payload=None, **kwargs):
+        seen["path"] = path
+        seen["payload"] = payload
+        return {"id": "chat-1"}
+
+    monkeypatch.setattr(provider, "request", fake_request)
+    result = provider.chat(model="m", messages=[{"role": "user", "content": "hello"}], temperature=0.1, max_tokens=32)
+    assert result == {"id": "chat-1"}
+    assert seen["path"] == "chat/completions"
+    assert seen["payload"]["messages"][0]["content"] == "hello"
+    assert seen["payload"]["max_tokens"] == 32
+
+
+class _FakeResponse:
+    def __init__(self, lines):
+        self._lines = [line.encode("utf-8") for line in lines]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def __iter__(self):
+        return iter(self._lines)
+
+
+class _FakeOpener:
+    def __init__(self, response):
+        self.response = response
+
+    def open(self, request, timeout):
+        self.request = request
+        self.timeout = timeout
+        return self.response
+
+
+def test_stream_parses_sse_and_enforces_protocol(monkeypatch):
+    provider = OpenAICompatibleProvider(
+        ProviderConfig("test", "http://127.0.0.1:9000/v1", capabilities=ProviderCapabilities(streaming=True)),
+        max_response_bytes=1024,
+    )
+    provider._opener = _FakeOpener(_FakeResponse([
+        ": keepalive\n",
+        "data: {\"delta\":\"A\"}\n",
+        "data: {\"delta\":\"B\"}\n",
+        "data: [DONE]\n",
+    ]))
+    events = list(provider.stream("responses", {"model": "m", "input": "hello"}, retries=0))
+    assert events == [{"delta": "A"}, {"delta": "B"}]
+    assert provider._opener.timeout == 120
+
+
+def test_response_size_limit_applies_to_streams():
+    provider = OpenAICompatibleProvider(
+        ProviderConfig("test", "http://127.0.0.1:9000/v1", capabilities=ProviderCapabilities(streaming=True)),
+        max_response_bytes=20,
+    )
+    provider._opener = _FakeOpener(_FakeResponse(["data: {\"large\":\"payload\"}\n"]))
+    with pytest.raises(RuntimeError, match="stream exceeds"):
+        list(provider.stream("responses", {"model": "m", "input": "x"}, retries=0))
+
+
 def test_provider_rejects_non_http_endpoints():
-    try:
+    with pytest.raises(ValueError, match="HTTP\(S\)"):
         OpenAICompatibleProvider(ProviderConfig("bad", "file:///tmp/model"))
-    except ValueError as exc:
-        assert "HTTP(S)" in str(exc)
-    else:
-        raise AssertionError("non-HTTP provider endpoint was accepted")
 
 
 def test_provider_environment_supports_local_runtime(monkeypatch):
@@ -57,9 +137,5 @@ def test_provider_environment_supports_local_runtime(monkeypatch):
 
 def test_provider_environment_rejects_embedded_credentials(monkeypatch):
     monkeypatch.setenv("BIOMCP_LLM_BASE_URL", "https://user:secret@example.com/v1")
-    try:
+    with pytest.raises(ValueError, match="without embedded credentials"):
         OpenAICompatibleProvider.from_environment()
-    except ValueError as exc:
-        assert "without embedded credentials" in str(exc)
-    else:
-        raise AssertionError("embedded provider credentials were accepted")
