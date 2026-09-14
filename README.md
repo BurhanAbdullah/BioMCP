@@ -4,7 +4,7 @@
 
 > **AI orchestrates. Scientific software measures.**
 
-BioMCP is a modular, open-source interoperability platform that lets AI agents discover and invoke real scientific software through the Model Context Protocol (MCP). It is designed as scientific infrastructure—not as a replacement for domain software and not as a black-box claim generator.
+BioMCP is a modular, open-source interoperability platform that lets AI agents discover and invoke real scientific software through the Model Context Protocol (MCP). It is designed as scientific infrastructure, not as a replacement for domain software and not as a black-box claim generator.
 
 ## Why BioMCP?
 
