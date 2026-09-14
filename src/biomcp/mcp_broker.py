@@ -11,7 +11,6 @@ import asyncio
 import json
 import os
 import shutil
-import threading
 from dataclasses import dataclass
 from typing import Any
 
@@ -28,13 +27,28 @@ class MCPBrokerConfig:
     max_result_bytes: int = 2 * 1024 * 1024
     child_env: tuple[tuple[str, str], ...] = ()
 
+    def __post_init__(self) -> None:
+        if not self.command or not all(isinstance(item, str) and item for item in self.command):
+            raise ValueError("MCP broker command must be a non-empty string tuple")
+        if not self.allowed_executables:
+            raise ValueError("MCP broker requires at least one allowed executable")
+        if not self.allowed_tools:
+            raise ValueError("MCP broker requires at least one allowed tool")
+        if not 1 <= self.timeout_seconds <= 300:
+            raise ValueError("MCP broker timeout_seconds must be 1..300")
+        if not 1 <= self.max_result_bytes <= 64 * 1024 * 1024:
+            raise ValueError("MCP broker max_result_bytes must be 1..67108864")
+        for key, value in self.child_env:
+            if not isinstance(key, str) or not isinstance(value, str) or not key:
+                raise ValueError("MCP broker child_env must contain string key/value pairs")
+            if key in {"PATH", "PYTHONPATH", "PYTHONHOME"}:
+                raise ValueError(f"MCP broker child_env cannot override {key}")
 
-def _json_list(name: str, *, required: bool = True) -> list[Any]:
+
+def _json_list(name: str) -> list[Any]:
     raw = os.getenv(name)
     if not raw:
-        if required:
-            raise RuntimeError(f"Set {name} to enable controlled MCP execution")
-        return []
+        raise RuntimeError(f"Set {name} to enable controlled MCP execution")
     try:
         value = json.loads(raw)
     except json.JSONDecodeError as exc:
@@ -57,8 +71,11 @@ def broker_config_from_environment() -> MCPBrokerConfig:
     if not tools or not all(isinstance(item, str) and item for item in tools):
         raise RuntimeError("BIOMCP_MCP_ALLOWED_TOOLS must be a non-empty JSON string array")
 
-    timeout = float(os.getenv("BIOMCP_MCP_TOOL_TIMEOUT_SECONDS", "30"))
-    max_bytes = int(os.getenv("BIOMCP_MCP_MAX_RESULT_BYTES", str(2 * 1024 * 1024)))
+    try:
+        timeout = float(os.getenv("BIOMCP_MCP_TOOL_TIMEOUT_SECONDS", "30"))
+        max_bytes = int(os.getenv("BIOMCP_MCP_MAX_RESULT_BYTES", str(2 * 1024 * 1024)))
+    except ValueError as exc:
+        raise RuntimeError("MCP broker limits must be numeric") from exc
     if not 1 <= timeout <= 300:
         raise RuntimeError("BIOMCP_MCP_TOOL_TIMEOUT_SECONDS must be 1..300")
     if not 1 <= max_bytes <= 64 * 1024 * 1024:
@@ -94,27 +111,8 @@ def broker_config_from_environment() -> MCPBrokerConfig:
 
 
 def _run(coro):
-    """Run an async MCP operation from a synchronous MCP tool handler."""
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
-
-    result: dict[str, Any] = {}
-    error: dict[str, BaseException] = {}
-
-    def worker() -> None:
-        try:
-            result["value"] = asyncio.run(coro)
-        except BaseException as exc:  # pragma: no cover - defensive bridge path
-            error["value"] = exc
-
-    thread = threading.Thread(target=worker, daemon=True)
-    thread.start()
-    thread.join()
-    if "value" in error:
-        raise error["value"]
-    return result["value"]
+    """Run one async MCP operation from a synchronous MCP tool handler."""
+    return asyncio.run(coro)
 
 
 class MCPToolBroker:
@@ -126,7 +124,11 @@ class MCPToolBroker:
     def _parameters(self) -> StdioServerParameters:
         env = {"PATH": os.environ.get("PATH", "")}
         env.update(dict(self.config.child_env))
-        return StdioServerParameters(command=self.config.command[0], args=list(self.config.command[1:]), env=env)
+        return StdioServerParameters(
+            command=self.config.command[0],
+            args=list(self.config.command[1:]),
+            env=env,
+        )
 
     async def _list_tools(self) -> list[dict[str, Any]]:
         async with stdio_client(self._parameters()) as (read, write):
@@ -136,10 +138,15 @@ class MCPToolBroker:
                 tools = []
                 for tool in result.tools:
                     if tool.name in self.config.allowed_tools:
+                        schema = getattr(tool, "input_schema", None)
+                        if schema is None:
+                            schema = getattr(tool, "inputSchema", None)
+                        if hasattr(schema, "model_dump"):
+                            schema = schema.model_dump(mode="json")
                         tools.append({
                             "name": tool.name,
                             "description": tool.description,
-                            "inputSchema": getattr(tool, "input_schema", getattr(tool, "inputSchema", None)),
+                            "inputSchema": schema,
                         })
                 return tools
 
@@ -152,10 +159,13 @@ class MCPToolBroker:
             async with ClientSession(read, write) as session:
                 await asyncio.wait_for(session.initialize(), timeout=self.config.timeout_seconds)
                 result = await asyncio.wait_for(session.call_tool(name, arguments), timeout=self.config.timeout_seconds)
+                structured = result.structured_content
+                if hasattr(structured, "model_dump"):
+                    structured = structured.model_dump(mode="json")
                 payload = {
                     "is_error": bool(result.is_error),
                     "content": [item.model_dump(mode="json") if hasattr(item, "model_dump") else str(item) for item in result.content],
-                    "structured_content": result.structured_content,
+                    "structured_content": structured,
                 }
                 encoded = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
                 if len(encoded) > self.config.max_result_bytes:
