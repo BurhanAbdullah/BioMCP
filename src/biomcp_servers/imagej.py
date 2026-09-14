@@ -14,21 +14,24 @@ def _executable() -> str | None:
 
 
 def _child_env() -> dict[str, str]:
-    """Pass runtime configuration while withholding obvious credentials."""
-    secret_markers = ("KEY", "TOKEN", "SECRET", "PASSWORD")
-    blocked = {
-        "BIOMCP_LLM_API_KEY",
-        "OPENAI_API_KEY",
-        "ANTHROPIC_API_KEY",
-        "AWS_ACCESS_KEY_ID",
-        "AWS_SECRET_ACCESS_KEY",
-        "AWS_SESSION_TOKEN",
+    """Build a minimal child environment without inheriting host state."""
+    allowed = {
+        "PATH",
+        "HOME",
+        "TMPDIR",
+        "TMP",
+        "TEMP",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+        "USER",
+        "LOGNAME",
+        "XDG_CONFIG_HOME",
+        "XDG_CACHE_HOME",
+        "XDG_DATA_HOME",
+        "JAVA_HOME",
     }
-    return {
-        key: value
-        for key, value in os.environ.items()
-        if key not in blocked and not any(marker in key.upper() for marker in secret_markers)
-    }
+    return {key: value for key, value in os.environ.items() if key in allowed}
 
 
 def _run_macro(binary: str, image: Path, macro: Path, timeout_seconds: int) -> dict[str, Any]:
