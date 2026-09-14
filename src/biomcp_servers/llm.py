@@ -1,25 +1,28 @@
 """BioMCP model runtime MCP server.
 
-The MCP surface remains deliberately small while the transport and provider
-logic moves into ``biomcp.gateway``. This keeps protocol handling separate from
-provider transport and makes the gateway independently testable.
+The MCP surface exposes model discovery and generation while provider
+transport, capability metadata and request validation live in
+``biomcp.llm``.
 """
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 
-from biomcp.gateway import OpenAICompatibleProvider
+from biomcp.llm import OpenAICompatibleProvider
 
 
 def create_server() -> MCPServer:
     mcp = MCPServer("BioMCP-LLM")
-    provider = OpenAICompatibleProvider()
+    provider_name = os.getenv("BIOMCP_LLM_PROVIDER", "openai-compatible")
+    provider = OpenAICompatibleProvider.from_environment(provider_name)
+    default_model = os.getenv("BIOMCP_LLM_MODEL")
 
     @mcp.tool()
     def list_models() -> dict[str, Any]:
-        """List models exposed by the configured OpenAI compatible endpoint."""
+        """List models exposed by the configured provider endpoint."""
         return provider.list_models()
 
     @mcp.tool()
@@ -34,18 +37,23 @@ def create_server() -> MCPServer:
     ) -> dict[str, Any]:
         """Generate a response through the configured model provider.
 
-        ``response_format`` and ``tools`` are passed through only when the
-        configured provider supports the corresponding OpenAI compatible
-        interface. BioMCP does not execute returned tool calls in this layer.
+        Structured output and tool definitions are passed through to providers
+        that support the OpenAI compatible Responses interface. Returned tool
+        calls are data at this layer and are not executed automatically.
         """
+        chosen = model or default_model
+        if not chosen:
+            raise ValueError("Provide model or set BIOMCP_LLM_MODEL")
         return provider.complete(
-            prompt=prompt,
-            model=model,
-            system=system,
-            temperature=temperature,
-            max_output_tokens=max_output_tokens,
+            model=chosen,
+            input=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": prompt},
+            ],
             response_format=response_format,
             tools=tools,
+            temperature=temperature,
+            max_output_tokens=max_output_tokens,
         )
 
     return mcp
