@@ -81,6 +81,17 @@ def test_config_rejects_environment_path_override():
         )
 
 
+def test_config_rejects_command_not_in_allowlist():
+    with pytest.raises(ValueError, match="command executable is not allowlisted"):
+        MCPToolBroker(
+            MCPBrokerConfig(
+                command=(sys.executable,),
+                allowed_executables=frozenset({os.path.realpath("/bin/false")}),
+                allowed_tools=frozenset({"echo"}),
+            )
+        )
+
+
 def test_config_rejects_empty_policy():
     with pytest.raises(ValueError, match="allowed executable"):
         MCPBrokerConfig(command=(sys.executable,), allowed_executables=frozenset(), allowed_tools=frozenset({"echo"}))
