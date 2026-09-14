@@ -2,44 +2,100 @@
 
 **The open MCP platform for biology, bioinformatics, bioimaging, and scientific AI.**
 
-BioMCP follows a PowerMCP-style architecture: one installable distribution, one machine-readable registry, independent MCP servers, client configuration, diagnostics, tests, and a documentation site. The registry states what is installable, experimental, planned, or externally provided.
+> **AI orchestrates. Scientific software measures.**
 
-## Server families
+BioMCP is a modular, open-source interoperability platform that lets AI agents discover and invoke real scientific software through the Model Context Protocol (MCP). It is designed as scientific infrastructure—not as a replacement for domain software and not as a black-box claim generator.
 
-**BioImage** — local image inspection, intensity summaries, and thresholding primitives.
+## Why BioMCP?
 
-**ImageJ / Fiji** — bridge to an explicitly configured local ImageJ/Fiji installation.
+Modern biological research already has powerful tools for microscopy, image analysis, modeling, sequence analysis, visualization, and workflow execution. The missing layer is often **interoperability**: a researcher should be able to ask an AI system for a scientific task while the actual measurement remains with the validated software that knows how to perform it.
 
-**LLM** — OpenAI-compatible model access for agent workflows using environment-provided credentials.
+BioMCP provides that layer:
 
-**BioNuclei** — validated external scientific MCP adapter; BioMCP does not duplicate its scientific engine.
+```text
+Researcher
+    │
+    ▼
+AI host / agent
+    │  plan • discover • select
+    ▼
+┌───────────────────────────────┐
+│            BioMCP             │
+│ registry • schemas • routing  │
+│ validation • configuration    │
+└───────────────┬───────────────┘
+                │ MCP / stdio
+       ┌────────┼────────┐
+       ▼        ▼        ▼
+   BioImage   ImageJ/Fiji   LLM
+       │        │        │
+       └────────┼────────┘
+                ▼
+       scientific computation
+                │
+                ▼
+       structured result
+       + provenance/evidence
+```
 
-**CellProfiler** — planned adapter; not advertised as installable until an executable, tested integration exists.
+The agent can plan and explain. The underlying scientific server performs the computation.
+
+## Platform at a glance
+
+| Capability | Purpose |
+|---|---|
+| **Unified package** | Install the BioMCP platform with one Python package |
+| **Registry** | Machine-readable server capabilities, status, transport and installation metadata |
+| **Independent servers** | Keep scientific integrations modular and replaceable |
+| **MCP stdio** | Standard local agent-to-tool interoperability |
+| **CLI** | Discover, install, launch and diagnose integrations |
+| **Client configuration** | Generate supported MCP host configuration instead of manual editing |
+| **Diagnostics** | Detect configuration and environment problems early |
+| **Evidence-first testing** | Validate source, wheel and sdist consumers through real MCP paths |
+
+## Current server families
+
+### BioImage
+Local image inspection, intensity summaries, thresholding and related quantitative image primitives.
+
+```bash
+biomcp run bioimage
+```
+
+### ImageJ / Fiji
+A controlled bridge to an explicitly configured local ImageJ/Fiji installation.
+
+```bash
+biomcp run imagej
+```
+
+### LLM Bridge
+OpenAI-compatible model connectivity for agent workflows using environment-provided configuration.
+
+```bash
+biomcp run llm
+```
+
+### BioNuclei — external validated adapter
+BioMCP can expose the independent BioNuclei MCP server without copying its scientific engine into this repository. Scientific implementation and validation remain under BioNuclei's authority.
+
+### CellProfiler — planned
+A future adapter, intentionally not presented as installable until an executable and tested integration exists.
 
 ## Quick start
 
 ```bash
 pip install biomcp
 biomcp list
-biomcp install --servers bioimage --clients generic
 biomcp doctor
+biomcp install --servers bioimage --clients generic
 ```
 
-Image-analysis dependencies:
+For image-analysis dependencies:
 
 ```bash
 pip install 'biomcp[bioimage]'
 ```
-
-## Launch servers
-
-```bash
-biomcp run bioimage
-biomcp run imagej
-biomcp run llm
-```
-
-Each server is independently launchable over stdio, following the modular server-factory pattern used by PowerMCP.
 
 ## Configure AI hosts
 
@@ -48,25 +104,108 @@ biomcp install --servers bioimage,imagej,llm --clients claude-desktop
 biomcp install --servers bioimage,llm --clients codex
 ```
 
-Use `--dry-run` to inspect changes before writing client configuration.
+Preview configuration changes before writing them:
+
+```bash
+biomcp install --servers bioimage --clients generic --dry-run
+```
 
 ## Local configuration
 
-`BIOMCP_IMAGEJ_EXECUTABLE` points to ImageJ/Fiji.
+ImageJ/Fiji:
 
-`BIOMCP_LLM_BASE_URL`, `BIOMCP_LLM_API_KEY`, and `BIOMCP_LLM_MODEL` configure the LLM bridge. `OPENAI_API_KEY` is accepted as an API-key fallback.
+```text
+BIOMCP_IMAGEJ_EXECUTABLE=/path/to/ImageJ-or-Fiji
+```
 
-## Scientific boundary
+LLM bridge:
 
-BioMCP transports typed tool calls. It does not invent scientific measurements, benchmarks, or validation claims. Scientific computation remains under the authority of the underlying server.
+```text
+BIOMCP_LLM_BASE_URL=...
+BIOMCP_LLM_API_KEY=...
+BIOMCP_LLM_MODEL=...
+```
+
+`OPENAI_API_KEY` is accepted as an API-key fallback.
+
+## Registry-first design
+
+The machine-readable registry is the authoritative description of the platform's integration surface. Every entry declares its validation state and whether it is installable. Current lifecycle states are:
+
+- **Planned** — catalogued future integration; not installable.
+- **Experimental** — runnable integration under active validation.
+- **Validated** — executable integration with tests and documented evidence.
+- **Deprecated** — retained for compatibility/history but not recommended.
+
+This prevents the documentation, installer and scientific claims from silently drifting apart.
+
+## Scientific tool contract
+
+A mature BioMCP operation should behave like a scientific API, not an unconstrained prompt. Its contract should make explicit:
+
+- purpose and capability;
+- input and output schemas;
+- preconditions and validation constraints;
+- deterministic or stochastic behavior;
+- software and version identity;
+- dataset/sample provenance where applicable;
+- artifacts and evidence;
+- failure modes and safe error behavior.
+
+## Reproducibility and trust
+
+BioMCP treats an integration as incomplete if it merely works from the source tree. The project validates installed artifacts and real MCP communication paths, while security-sensitive subprocess boundaries are explicitly controlled.
+
+The guiding rule is simple:
+
+> **A generated explanation is not a scientific measurement.**
+
+Scientific conclusions should remain traceable to the executable operation and evidence that produced them.
+
+## Four-pillar research ecosystem
+
+BioMCP is one layer of a broader scientific-AI architecture:
+
+- **BioFM** — domain-aware vision and multimodal foundation-model research for biological imagery.
+- **BioMCP** — typed agent-to-tool interoperability.
+- **BioWF** — reproducible, versioned and auditable scientific workflow composition.
+- **BioSkills** — reusable protocols, validation rules, failure-mode checks and scientific procedures.
+
+These layers are complementary. Future layers are explicitly marked as research directions until their implementations and validation evidence exist.
+
+## Roadmap
+
+### Near term
+
+- strengthen resource and decompression limits for image handling;
+- harden ImageJ/Fiji subprocess timeouts and environment isolation;
+- validate LLM endpoints and bound response sizes;
+- formalize registry schema/versioning and capability metadata;
+- expand Linux/macOS/Windows CI and end-to-end tests.
+
+### Ecosystem
+
+- PyMOL interoperability;
+- CellProfiler integration;
+- BLAST/sequence-analysis integration;
+- reproducible workflow engines such as Nextflow;
+- configuration templates for major MCP-capable AI hosts;
+- benchmark suites for tool selection, reliability, protocol compliance and evidence fidelity.
+
+Each integration must earn its status through executable code, tests, documentation and evidence.
+
+## Development
+
+```bash
+pip install -e '.[test]'
+pytest
+```
+
+Contributions should preserve the platform's scientific boundary and must not turn planned capabilities into undocumented claims.
 
 ## Website
 
-The product site lives in `docs/` and is published by GitHub Pages.
-
-## Contributing
-
-A new integration needs an executable server, registry metadata, tests, documentation, client configuration, and an explicit validation state before being promoted to installable or validated.
+The documentation/product site is maintained in [`docs/`](docs/) and published through GitHub Pages.
 
 ## License
 
