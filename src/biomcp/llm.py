@@ -202,18 +202,29 @@ class OpenAICompatibleProvider:
         return self.request("models")
 
     def chat(self, *, model: str, messages: list[Mapping[str, Any]], stream: bool = False,
-             temperature: float | None = None, max_tokens: int | None = None) -> dict[str, Any] | Iterator[dict[str, Any]]:
+             temperature: float | None = None, max_tokens: int | None = None,
+             response_format: Mapping[str, Any] | None = None,
+             tools: list[Mapping[str, Any]] | None = None) -> dict[str, Any] | Iterator[dict[str, Any]]:
         """Call the OpenAI-compatible Chat Completions endpoint."""
         self._require("chat")
-        if stream:
-            return self.stream("chat/completions", {"model": model, "messages": messages,
-                                                       "temperature": temperature,
-                                                       "max_tokens": max_tokens})
-        payload = {"model": model, "messages": [dict(m) for m in messages]}
+        if response_format is not None:
+            self._require("structured_output")
+        if tools is not None:
+            self._require("tool_calling")
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": [dict(m) for m in messages],
+        }
         if temperature is not None:
             payload["temperature"] = temperature
         if max_tokens is not None:
             payload["max_tokens"] = max_tokens
+        if response_format is not None:
+            payload["response_format"] = dict(response_format)
+        if tools is not None:
+            payload["tools"] = [dict(tool) for tool in tools]
+        if stream:
+            return self.stream("chat/completions", payload)
         return self.request("chat/completions", payload)
 
     def complete(self, *, model: str, input: Any, stream: bool = False,
