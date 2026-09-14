@@ -46,11 +46,11 @@
       "command": "biomcp-llm",
       "transport": ["stdio"],
       "dependencies": [],
-      "config": ["BIOMCP_LLM_PROVIDER", "BIOMCP_LLM_BASE_URL", "BIOMCP_LLM_API_KEY", "BIOMCP_LLM_MODEL", "BIOMCP_LLM_TIMEOUT_SECONDS", "BIOMCP_LLM_MAX_RESPONSE_BYTES"],
+      "config": ["BIOMCP_LLM_PROVIDER", "BIOMCP_LLM_BASE_URL", "BIOMCP_LLM_API_KEY", "BIOMCP_LLM_MODEL", "BIOMCP_LLM_TIMEOUT_SECONDS", "BIOMCP_LLM_MAX_RESPONSE_BYTES", "BIOMCP_MCP_SERVER_COMMAND", "BIOMCP_MCP_ALLOWED_EXECUTABLES", "BIOMCP_MCP_ALLOWED_TOOLS", "BIOMCP_MCP_TOOL_TIMEOUT_SECONDS", "BIOMCP_MCP_MAX_RESULT_BYTES", "BIOMCP_MCP_SERVER_ENV_JSON"],
       "providers": ["openai-compatible", "ollama", "vllm"],
-      "capabilities": ["model_discovery", "chat", "responses", "streaming", "structured_output", "tool_calling"],
-      "description": "Provider based model runtime bridge for OpenAI compatible hosted and local endpoints. MCP tool execution remains a separate controlled layer.",
-      "tools": ["list_models", "complete"]
+      "capabilities": ["model_discovery", "chat", "responses", "streaming", "structured_output", "tool_calling", "mcp_capability_discovery", "mcp_tool_execution"],
+      "description": "Provider based model runtime bridge with an explicitly allowlisted MCP downstream tool broker.",
+      "tools": ["list_models", "complete", "mcp_capabilities", "mcp_call_tool"]
     },
     {
       "name": "bionuclei",
