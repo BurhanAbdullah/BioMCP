@@ -77,30 +77,36 @@ def test_imagej_timeout_is_structured_and_child_env_is_allowlisted(monkeypatch, 
 
 
 def test_llm_requires_credentials(monkeypatch):
+    import pytest
+    from biomcp.llm import OpenAICompatibleProvider, ProviderConfig
+
     monkeypatch.delenv("BIOMCP_LLM_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    from biomcp_servers.llm import _headers
-    import pytest
+    provider = OpenAICompatibleProvider(
+        ProviderConfig("test", "https://example.org/v1", "BIOMCP_LLM_API_KEY")
+    )
     with pytest.raises(RuntimeError, match="API_KEY"):
-        _headers()
+        provider._headers()
 
 
 def test_llm_rejects_unsafe_base_urls(monkeypatch):
     import pytest
-    from biomcp_servers.llm import _base
+    from biomcp.llm import OpenAICompatibleProvider, ProviderConfig
 
     for value in ("file:///etc/passwd", "ftp://example.org/v1", "https://user:pass@example.org/v1"):
-        monkeypatch.setenv("BIOMCP_LLM_BASE_URL", value)
-        with pytest.raises(ValueError, match="HTTP\\(S\\) URL"):
-            _base()
+        with pytest.raises(ValueError, match=r"HTTP\(S\) URL"):
+            OpenAICompatibleProvider(ProviderConfig("test", value))
 
 
 def test_llm_http_errors_do_not_echo_provider_body(monkeypatch):
     import urllib.error
     import pytest
-    from biomcp_servers import llm
+    from biomcp.llm import OpenAICompatibleProvider, ProviderConfig
 
-    monkeypatch.setenv("BIOMCP_LLM_API_KEY", "secret")
+    provider = OpenAICompatibleProvider(
+        ProviderConfig("test", "https://example.org/v1", "BIOMCP_LLM_API_KEY"),
+        api_key="secret",
+    )
 
     class FakeOpener:
         def open(self, *args, **kwargs):
@@ -112,9 +118,9 @@ def test_llm_http_errors_do_not_echo_provider_body(monkeypatch):
                 fp=None,
             )
 
-    monkeypatch.setattr(llm, "_NO_REDIRECT_OPENER", FakeOpener())
+    provider._opener = FakeOpener()
     with pytest.raises(RuntimeError, match=r"LLM HTTP 401") as excinfo:
-        llm._request("models")
+        provider.request("models", retries=0)
     assert "Unauthorized" not in str(excinfo.value)
     assert "secret" not in str(excinfo.value)
 
@@ -122,15 +128,19 @@ def test_llm_http_errors_do_not_echo_provider_body(monkeypatch):
 def test_llm_timeout_is_sanitized(monkeypatch):
     import socket
     import pytest
-    from biomcp_servers import llm
+    from biomcp.llm import OpenAICompatibleProvider, ProviderConfig
 
-    monkeypatch.setenv("BIOMCP_LLM_API_KEY", "secret")
+    provider = OpenAICompatibleProvider(
+        ProviderConfig("test", "https://example.org/v1", "BIOMCP_LLM_API_KEY"),
+        api_key="secret",
+    )
 
     class FakeOpener:
         def open(self, *args, **kwargs):
             raise socket.timeout("sensitive socket details")
 
-    monkeypatch.setattr(llm, "_NO_REDIRECT_OPENER", FakeOpener())
+    provider._opener = FakeOpener()
     with pytest.raises(RuntimeError, match="LLM endpoint unavailable") as excinfo:
-        llm._request("models")
+        provider.request("models", retries=0)
+    assert "sensitive socket details" not in str(excinfo.value)
     assert "secret" not in str(excinfo.value)
