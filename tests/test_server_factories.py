@@ -43,10 +43,13 @@ def test_imagej_macro_requires_configured_executable(monkeypatch, tmp_path):
     assert server is not None
 
 
-def test_imagej_timeout_is_structured_and_child_env_is_sanitized(monkeypatch, tmp_path):
+def test_imagej_timeout_is_structured_and_child_env_is_allowlisted(monkeypatch, tmp_path):
     monkeypatch.setenv("BIOMCP_LLM_API_KEY", "do-not-leak")
     monkeypatch.setenv("OPENAI_API_KEY", "do-not-leak")
     monkeypatch.setenv("IMAGEJ_SAFE_OPTION", "keep")
+    monkeypatch.setenv("JAVA_TOOL_OPTIONS", "-Dunsafe=true")
+    monkeypatch.setenv("LD_PRELOAD", "/tmp/unsafe.so")
+    monkeypatch.setenv("PATH", "/safe/bin")
     image = tmp_path / "image.tif"
     macro = tmp_path / "macro.ijm"
     image.write_bytes(b"x")
@@ -65,7 +68,10 @@ def test_imagej_timeout_is_structured_and_child_env_is_sanitized(monkeypatch, tm
     value = imagej._run_macro("/usr/bin/fiji", image, macro, 3)
     assert value["timed_out"] is True
     assert value["returncode"] is None
-    assert seen["env"]["IMAGEJ_SAFE_OPTION"] == "keep"
+    assert seen["env"]["PATH"] == "/safe/bin"
+    assert "IMAGEJ_SAFE_OPTION" not in seen["env"]
+    assert "JAVA_TOOL_OPTIONS" not in seen["env"]
+    assert "LD_PRELOAD" not in seen["env"]
     assert "BIOMCP_LLM_API_KEY" not in seen["env"]
     assert "OPENAI_API_KEY" not in seen["env"]
 
