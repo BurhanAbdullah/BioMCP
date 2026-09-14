@@ -9,7 +9,7 @@ description = "Open MCP platform for biology, bioinformatics, bioimaging, and sc
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{name = "BioMCP Contributors"}]
-license = {text = "MIT"}
+license = "MIT"
 keywords = ["mcp", "biology", "bioinformatics", "bioimaging", "imagej", "cellprofiler", "llm", "scientific-ai"]
 classifiers = ["Development Status :: 3 - Alpha", "Intended Audience :: Science/Research", "License :: OSI Approved :: MIT License", "Programming Language :: Python :: 3.10", "Programming Language :: Python :: 3.11", "Programming Language :: Python :: 3.12", "Topic :: Scientific/Engineering"]
 dependencies = ["mcp>=2,<3"]
