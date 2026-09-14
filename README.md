@@ -11,42 +11,33 @@
 
 BioMCP is a modular, open-source interoperability platform that lets AI agents discover and invoke real scientific software through the Model Context Protocol (MCP). It is designed as scientific infrastructure: **BioMCP connects, routes, validates, and documents scientific capabilities; the underlying scientific software remains responsible for computation and measurement.**
 
-## Architecture
+At the core is a registry-driven MCP layer between the AI host/agent and scientific software.
 
-<p align="center">
-  <img src="2as.png" alt="BioMCP scientific software interoperability architecture" width="100%">
-</p>
+The intended execution flow is:
 
-At the core is a registry-driven MCP layer between the AI host/agent and scientific software. The intended flow is:
+**Researcher → AI host / agent → BioMCP → scientific software → structured result + provenance/evidence**
 
-```text
-Researcher
-    │
-    ▼
-AI host / agent
-    │  plan • discover • select
-    ▼
-┌───────────────────────────────┐
-│            BioMCP             │
-│ registry • schemas • routing  │
-│ validation • configuration    │
-└───────────────┬───────────────┘
-                │ MCP / stdio
-       ┌────────┼────────┐
-       ▼        ▼        ▼
-   BioImage   ImageJ/Fiji   LLM
-       │        │        │
-       └────────┼────────┘
-                ▼
-       scientific computation
-                │
-                ▼
-       structured result
-       + provenance/evidence
-```
+![BioMCP architecture and scientific software interoperability](2as.png)
 
-The detailed ecosystem diagram in [`2as.png`](2as.png) is the long-term platform vision. BioMCP deliberately distinguishes implemented integrations from planned ecosystem additions so that the repository never advertises unsupported software as already available.
+The architecture above represents the BioMCP platform vision: a registry-driven interoperability layer through which AI hosts and agents can discover, select, configure, and invoke scientific capabilities using MCP.
 
+BioMCP separates the interoperability layer from the scientific computation itself:
+
+- **AI host / agent** — plans the task, discovers available capabilities, and selects appropriate tools.
+- **BioMCP** — provides registry-driven discovery, typed schemas, routing, validation, configuration, and MCP transport.
+- **Scientific software** — performs the actual domain-specific computation or measurement.
+- **Structured results** — return machine-readable scientific outputs to the calling agent.
+- **Provenance / evidence** — preserves the information needed to understand and reproduce how a result was produced.
+
+The initial BioMCP implementation focuses on three installable server families:
+
+- **BioImage**
+- **ImageJ/Fiji**
+- **LLM**
+
+Additional open-source scientific software integrations will be introduced incrementally in later versions. The detailed ecosystem shown in `2as.png` therefore represents the **long-term BioMCP platform vision**, not a claim that every depicted software package is currently implemented.
+
+BioMCP deliberately distinguishes **implemented**, **experimental**, **validated**, **planned**, and **external** capabilities so that the registry and documentation do not advertise unsupported software as available.
 ## Why BioMCP?
 
 Biology already has a large ecosystem of capable open-source scientific tools. The problem is often not the absence of software, but the absence of a standard, auditable bridge between those tools and modern AI agents.
