@@ -11,6 +11,7 @@ REGISTRY_PATH = _REPO_REGISTRY if _REPO_REGISTRY.is_file() else _PACKAGED_REGIST
 
 _ALLOWED_STATUS = {"planned", "experimental", "validated", "deprecated"}
 _ALLOWED_TRANSPORTS = {"stdio", "streamable-http", "sse"}
+_ALLOWED_CAPABILITIES = {"model_discovery", "chat", "responses", "streaming", "structured_output", "tool_calling"}
 
 
 def load_registry(path: Path | None = None) -> dict[str, Any]:
@@ -68,6 +69,14 @@ def load_registry(path: Path | None = None) -> dict[str, Any]:
         config = entry.get("config", [])
         if not isinstance(config, list) or not all(isinstance(key, str) and key.strip() for key in config):
             raise ValueError(f"Server {name} config must be a list of environment/config keys")
+
+        providers = entry.get("providers", [])
+        if not isinstance(providers, list) or not all(isinstance(provider, str) and provider.strip() for provider in providers):
+            raise ValueError(f"Server {name} providers must be a list of names")
+
+        capabilities = entry.get("capabilities", [])
+        if not isinstance(capabilities, list) or not all(isinstance(capability, str) and capability in _ALLOWED_CAPABILITIES for capability in capabilities):
+            raise ValueError(f"Server {name} contains unsupported capability metadata")
 
         if installable:
             extra = entry.get("package_extra")
