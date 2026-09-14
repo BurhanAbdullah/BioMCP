@@ -1,5 +1,9 @@
 # BioMCP
 
+<p align="center">
+  <img src="1.jpeg" alt="BioMCP — open scientific software interoperability platform" width="100%">
+</p>
+
 **The open MCP platform for biology, bioinformatics, bioimaging, and scientific AI.**
 
 > **AI orchestrates. Scientific software measures.**
@@ -10,7 +14,13 @@ BioMCP is a modular, open-source interoperability platform that lets AI agents d
 
 Modern biological research already has powerful tools for microscopy, image analysis, modeling, sequence analysis, visualization, and workflow execution. The missing layer is often **interoperability**: a researcher should be able to ask an AI system for a scientific task while the actual measurement remains with the validated software that knows how to perform it.
 
-BioMCP provides that layer:
+BioMCP provides that layer. The platform architecture is shown below.
+
+<p align="center">
+  <img src="2as.png" alt="BioMCP architecture connecting researchers and AI agents to scientific software through the BioMCP Core, producing structured results with provenance and evidence" width="100%">
+</p>
+
+### Core execution model
 
 ```text
 Researcher
@@ -81,7 +91,7 @@ BioMCP can expose the independent BioNuclei MCP server without copying its scien
 
 ## Open-source integration expansion
 
-BioMCP will grow into a **registry-driven ecosystem of adapters** for open scientific software. We will not pretend that every project is supported on day one. New integrations become installable only after executable implementation, tests, security controls, documentation, packaging, and CI evidence exist.
+BioMCP is designed to grow into a broad interoperability layer over the open scientific software ecosystem. Integrations will be added incrementally and promoted only after executable implementation, tests, documentation, packaging, and validation evidence exist.
 
 ### v0.3 — first three new integrations
 
@@ -91,7 +101,7 @@ BioMCP will grow into a **registry-driven ecosystem of adapters** for open scien
 
 These are initially catalogued as **planned**. Their registry state will move to experimental and then validated only when the corresponding adapters pass the project gates.
 
-### v0.4+ — expansion candidates
+### v0.4+ — expansion candidates
 
 The roadmap includes Napari, QuPath, Cellpose, ilastik, UCSF ChimeraX, VMD, RDKit, OpenMM, GROMACS, Biopython, HMMER, samtools, bcftools, BWA, Bowtie2, STAR, FreeBayes, Nextflow, Snakemake, and additional open scientific tools selected by community demand and technical fit.
 
