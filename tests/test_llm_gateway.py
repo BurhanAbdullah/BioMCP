@@ -1,5 +1,3 @@
-import io
-
 import pytest
 
 from biomcp.llm import OpenAICompatibleProvider, ProviderConfig, ProviderCapabilities, builtin_providers
@@ -95,7 +93,7 @@ class _FakeOpener:
         return self.response
 
 
-def test_stream_parses_sse_and_enforces_protocol(monkeypatch):
+def test_stream_parses_sse_and_enforces_protocol():
     provider = OpenAICompatibleProvider(
         ProviderConfig("test", "http://127.0.0.1:9000/v1", capabilities=ProviderCapabilities(streaming=True)),
         max_response_bytes=1024,
