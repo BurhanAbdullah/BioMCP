@@ -1,7 +1,7 @@
 """BioMCP command line interface.
 
-The CLI is intentionally registry driven. Installation, launch, diagnostics and
-client configuration all consume the same machine readable server metadata.
+The CLI is registry driven. Installation, launch, diagnostics and client
+configuration consume the same machine readable server metadata.
 """
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ import importlib.util
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -19,11 +18,11 @@ from typing import Any
 
 from . import __version__
 from .config import show as show_config, set_value
+from .doctor import diagnose
 from .registry import get_server, installable_servers, load_registry
 
 
 def _client_paths(*, platform: str | None = None, os_name: str | None = None, home: Path | None = None, path_cls=Path) -> dict[str, Path]:
-    """Return platform appropriate configuration paths for supported clients."""
     platform = sys.platform if platform is None else platform
     os_name = os.name if os_name is None else os_name
     home = Path.home() if home is None else home
@@ -36,7 +35,6 @@ def _client_paths(*, platform: str | None = None, os_name: str | None = None, ho
         claude = path_cls(appdata) / "Claude" / "claude_desktop_config.json"
     else:
         claude = home / ".config" / "Claude" / "claude_desktop_config.json"
-
     config_root = os.environ.get("XDG_CONFIG_HOME")
     generic_root = path_cls(config_root) if config_root else home / ".config"
     return {
@@ -56,7 +54,6 @@ def _server_configs(names: list[str]) -> dict[str, dict[str, Any]]:
 
 
 def _atomic_write_text(path: Path, content: str) -> None:
-    """Replace a client config atomically while preserving existing permissions."""
     path.parent.mkdir(parents=True, exist_ok=True)
     mode = (path.stat().st_mode & 0o777) if path.exists() else 0o600
     fd, tmp_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
@@ -66,7 +63,7 @@ def _atomic_write_text(path: Path, content: str) -> None:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(content)
             handle.flush()
-            os.fsync(handle.fileno())
+            os.fsync(fileno := handle.fileno())
         os.replace(tmp, path)
     except BaseException:
         try:
@@ -90,7 +87,6 @@ def _write_json(path: Path, servers: dict[str, dict[str, Any]]) -> None:
 
 
 def _write_codex(path: Path, servers: dict[str, dict[str, Any]]) -> None:
-    """Upsert BioMCP managed Codex MCP blocks without duplication."""
     existing = path.read_text(encoding="utf-8") if path.exists() else ""
     for name, cfg in servers.items():
         args = "[" + ", ".join(json.dumps(x) for x in cfg.get("args", [])) + "]"
@@ -106,18 +102,14 @@ def _write_codex(path: Path, servers: dict[str, dict[str, Any]]) -> None:
 
 
 def _missing_dependencies(entry: dict[str, Any]) -> list[str]:
-    """Return import names declared by a registry entry that are unavailable."""
     missing: list[str] = []
     for module in entry.get("dependencies", []):
-        if not isinstance(module, str) or not module:
-            continue
         if importlib.util.find_spec(module) is None:
             missing.append(module)
     return missing
 
 
 def _install_extra(entry: dict[str, Any]) -> bool:
-    """Install a server's optional dependency group when its declared imports are missing."""
     extra = entry.get("package_extra")
     missing = _missing_dependencies(entry)
     if not extra or not missing:
@@ -130,7 +122,6 @@ def _install_extra(entry: dict[str, Any]) -> bool:
 
 
 def _install_selected(names: list[str], *, dry_run: bool = False) -> None:
-    """Ensure optional dependencies for selected installable servers are present."""
     for name in names:
         entry = get_server(name)
         if dry_run:
@@ -160,13 +151,11 @@ def cmd_install(args: argparse.Namespace) -> int:
         names = [s.strip() for s in args.servers.split(",") if s.strip()]
     else:
         names = [entry["name"] for entry in installable_servers()]
-
     if not names:
         raise SystemExit("No installable BioMCP servers selected")
-
     _install_selected(names, dry_run=args.dry_run)
     servers = _server_configs(names)
-    clients = [c.strip() for c in args.clients.split(",") if c.strip()]
+    clients = [c.strip() for c in args.clients.split(",") if c.strip() and c.strip() != "none"]
     for client in clients:
         if client == "codex":
             path = Path.home() / ".codex" / "config.toml"
@@ -185,26 +174,21 @@ def cmd_install(args: argparse.Namespace) -> int:
     return 0
 
 
-def _check_command(command: str) -> bool:
-    return bool(shutil.which(command))
-
-
 def cmd_doctor(args: argparse.Namespace) -> int:
-    entries = installable_servers()
-    if args.server:
-        entries = [get_server(args.server)]
+    results = diagnose(args.server)
     failures = 0
-    for entry in entries:
-        command = str(entry["command"])
-        command_ok = _check_command(command)
-        missing = _missing_dependencies(entry)
-        dependency_ok = not missing
-        state = "OK" if command_ok and dependency_ok else "MISSING"
-        detail = command
+    for result in results:
+        ok = bool(result["ok"])
+        status = "OK" if ok else "MISSING"
+        detail = str(result["command"])
+        missing = list(result["missing_dependencies"])
+        config = list(result["missing_configuration"])
         if missing:
             detail += f" | dependencies: {', '.join(missing)}"
-        print(f"{entry['name']:16} {state:8} {detail}")
-        failures += int(not command_ok or not dependency_ok)
+        if config:
+            detail += f" | config: {', '.join(config)}"
+        print(f"{str(result['name']):18} {status:8} {detail}")
+        failures += int(not ok)
     return 1 if failures else 0
 
 
@@ -213,7 +197,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     if not entry.get("installable"):
         raise SystemExit(f"{args.server} is not installable (status: {entry.get('status')})")
     command = str(entry["command"])
-    if not shutil.which(command):
+    if shutil.which(command) is None:
         raise SystemExit(f"Command not found: {command}. Run `biomcp doctor --server {args.server}`.")
     return subprocess.run([command, *args.extra], check=False).returncode
 
@@ -222,26 +206,21 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="biomcp", description="MCP servers and adapters for scientific software")
     parser.add_argument("--version", action="version", version=f"BioMCP {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
-
     p = sub.add_parser("list", help="list registered servers, transports and lifecycle state")
     p.set_defaults(func=cmd_list)
-
     p = sub.add_parser("install", help="install selected integration dependencies and configure MCP clients")
     p.add_argument("--servers", help="comma separated server ids; default is all installable servers")
     p.add_argument("--all", action="store_true", help="select every installable server")
     p.add_argument("--clients", default="generic", help="generic, claude-desktop, codex, or none")
     p.add_argument("--dry-run", action="store_true", help="show dependency and configuration changes without writing")
     p.set_defaults(func=cmd_install)
-
     p = sub.add_parser("doctor", help="check registered server commands and declared dependencies")
     p.add_argument("--server")
     p.set_defaults(func=cmd_doctor)
-
     p = sub.add_parser("run", help="launch a registered MCP server over stdio")
     p.add_argument("server")
     p.add_argument("extra", nargs=argparse.REMAINDER)
     p.set_defaults(func=cmd_run)
-
     p = sub.add_parser("config", help="inspect or edit persistent BioMCP configuration")
     cfg = p.add_subparsers(dest="config_command", required=True)
     q = cfg.add_parser("show")
