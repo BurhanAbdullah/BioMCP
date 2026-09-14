@@ -62,7 +62,12 @@ def main() -> None:
         "threshold_image",
     ]
     assert asyncio.run(_tools("biomcp-imagej")) == ["imagej_status", "run_macro"]
-    assert asyncio.run(_tools("biomcp-llm")) == ["list_models", "complete"]
+    assert asyncio.run(_tools("biomcp-llm")) == [
+        "list_models",
+        "complete",
+        "mcp_capabilities",
+        "mcp_call_tool",
+    ]
 
     with tempfile.TemporaryDirectory() as tmp:
         image = Path(tmp) / "consumer.tif"
