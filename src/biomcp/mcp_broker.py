@@ -136,7 +136,11 @@ class MCPToolBroker:
                 tools = []
                 for tool in result.tools:
                     if tool.name in self.config.allowed_tools:
-                        tools.append({"name": tool.name, "description": tool.description, "inputSchema": tool.inputSchema})
+                        tools.append({
+                            "name": tool.name,
+                            "description": tool.description,
+                            "inputSchema": getattr(tool, "input_schema", getattr(tool, "inputSchema", None)),
+                        })
                 return tools
 
     async def _call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
