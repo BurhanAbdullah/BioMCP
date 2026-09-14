@@ -34,6 +34,7 @@ def test_real_mcp_client_session_discovers_and_calls_allowlisted_tool():
     broker = MCPToolBroker(_config("echo"))
     tools = broker.list_tools()
     assert [tool["name"] for tool in tools] == ["echo"]
+    assert tools[0]["inputSchema"]
     result = broker.call_tool("echo", {"value": "scientific"})
     assert result["is_error"] is False
     assert result["structured_content"]["value"] == "scientific"
@@ -68,3 +69,20 @@ def test_environment_rejects_invalid_limits(monkeypatch):
     monkeypatch.setenv("BIOMCP_MCP_TOOL_TIMEOUT_SECONDS", "301")
     with pytest.raises(RuntimeError, match="must be 1..300"):
         broker_config_from_environment()
+
+
+def test_config_rejects_environment_path_override():
+    with pytest.raises(ValueError, match="cannot override PATH"):
+        MCPBrokerConfig(
+            command=(sys.executable,),
+            allowed_executables=frozenset({os.path.realpath(sys.executable)}),
+            allowed_tools=frozenset({"echo"}),
+            child_env=(("PATH", "/unsafe"),),
+        )
+
+
+def test_config_rejects_empty_policy():
+    with pytest.raises(ValueError, match="allowed executable"):
+        MCPBrokerConfig(command=(sys.executable,), allowed_executables=frozenset(), allowed_tools=frozenset({"echo"}))
+    with pytest.raises(ValueError, match="allowed tool"):
+        MCPBrokerConfig(command=(sys.executable,), allowed_executables=frozenset({sys.executable}), allowed_tools=frozenset())
