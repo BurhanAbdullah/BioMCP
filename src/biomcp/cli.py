@@ -10,6 +10,7 @@ import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -63,7 +64,7 @@ def _atomic_write_text(path: Path, content: str) -> None:
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
             handle.write(content)
             handle.flush()
-            os.fsync(fileno := handle.fileno())
+            os.fsync(handle.fileno())
         os.replace(tmp, path)
     except BaseException:
         try:
