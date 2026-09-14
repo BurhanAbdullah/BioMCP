@@ -120,6 +120,9 @@ class MCPToolBroker:
 
     def __init__(self, config: MCPBrokerConfig):
         self.config = config
+        resolved = os.path.realpath(shutil.which(config.command[0]) or config.command[0])
+        if resolved not in config.allowed_executables:
+            raise ValueError("MCP broker command executable is not allowlisted")
 
     def _parameters(self) -> StdioServerParameters:
         env = {"PATH": os.environ.get("PATH", "")}
