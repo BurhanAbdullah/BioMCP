@@ -1,1 +1,97 @@
-{"schema_version":"1.1","product":"BioMCP","servers":[{"name":"bioimage","display_name":"BioImage Tools","category":"bioimaging","status":"experimental","installable":true,"package_extra":"bioimage","command":"biomcp-bioimage","transport":["stdio"],"description":"Open bioimage inspection, intensity and segmentation primitives.","tools":["inspect_image","intensity_summary","threshold_image"]},{"name":"imagej","display_name":"ImageJ / Fiji","category":"bioimaging","status":"experimental","installable":true,"package_extra":"imagej","command":"biomcp-imagej","transport":["stdio"],"description":"Bridge an installed ImageJ/Fiji runtime to MCP with explicit local-path controls.","tools":["imagej_status","run_macro"]},{"name":"llm","display_name":"LLM Bridge","category":"llm","status":"experimental","installable":true,"package_extra":"llm","command":"biomcp-llm","transport":["stdio"],"description":"Connect MCP workflows to an OpenAI-compatible chat endpoint using environment-provided credentials.","tools":["list_models","complete"]},{"name":"bionuclei","display_name":"BioNuclei","category":"bioimaging","status":"validated","installable":false,"external":true,"command":"bionuclei-mcp","transport":["stdio","streamable-http"],"description":"Nuclear instance segmentation and derived measurements. Install through the BioNuclei release channel when available.","tools":["inspect_image","predict_image","evaluate_image","compute_instance_metrics","read_provenance","load_result_summary"]},{"name":"cellprofiler","display_name":"CellProfiler","category":"bioimage-analysis","status":"planned","installable":false,"description":"Future validated adapter for local CellProfiler pipelines.","tools":[]}]}
+{
+  "schema_version": "1.2",
+  "product": "BioMCP",
+  "distribution": "biomcp",
+  "servers": [
+    {
+      "name": "bioimage",
+      "display_name": "BioImage Tools",
+      "category": "bioimaging",
+      "kind": "open-source",
+      "status": "experimental",
+      "installable": true,
+      "package_extra": "bioimage",
+      "distribution": "biomcp",
+      "command": "biomcp-bioimage",
+      "transport": ["stdio"],
+      "dependencies": ["numpy", "tifffile", "skimage"],
+      "description": "Open bioimage inspection, intensity and thresholding primitives.",
+      "tools": ["inspect_image", "intensity_summary", "threshold_image"]
+    },
+    {
+      "name": "imagej",
+      "display_name": "ImageJ / Fiji",
+      "category": "bioimaging",
+      "kind": "open-source",
+      "status": "experimental",
+      "installable": true,
+      "package_extra": "imagej",
+      "distribution": "biomcp",
+      "command": "biomcp-imagej",
+      "transport": ["stdio"],
+      "dependencies": ["imagej"],
+      "config": ["BIOMCP_IMAGEJ_EXECUTABLE"],
+      "description": "Controlled bridge to an explicitly configured local ImageJ or Fiji runtime.",
+      "tools": ["imagej_status", "run_macro"]
+    },
+    {
+      "name": "llm",
+      "display_name": "LLM Gateway",
+      "category": "model-runtime",
+      "kind": "runtime",
+      "status": "experimental",
+      "installable": true,
+      "package_extra": "llm",
+      "distribution": "biomcp",
+      "command": "biomcp-llm",
+      "transport": ["stdio"],
+      "dependencies": [],
+      "config": ["BIOMCP_LLM_BASE_URL", "BIOMCP_LLM_API_KEY", "BIOMCP_LLM_MODEL"],
+      "description": "Initial OpenAI-compatible model runtime bridge. Provider abstraction and controlled MCP tool orchestration are under development.",
+      "tools": ["list_models", "complete"]
+    },
+    {
+      "name": "bionuclei",
+      "display_name": "BioNuclei",
+      "category": "bioimaging",
+      "kind": "external",
+      "status": "validated",
+      "installable": false,
+      "external": true,
+      "command": "bionuclei-mcp",
+      "transport": ["stdio", "streamable-http"],
+      "description": "Independent validated scientific MCP server for nuclear instance segmentation and derived measurements.",
+      "tools": ["inspect_image", "predict_image", "evaluate_image", "compute_instance_metrics", "read_provenance", "load_result_summary"]
+    },
+    {
+      "name": "pymol",
+      "display_name": "PyMOL",
+      "category": "structural-biology",
+      "kind": "open-source",
+      "status": "planned",
+      "installable": false,
+      "description": "Planned adapter for molecular visualization and structural-biology workflows.",
+      "tools": []
+    },
+    {
+      "name": "cellprofiler",
+      "display_name": "CellProfiler",
+      "category": "bioimage-analysis",
+      "kind": "open-source",
+      "status": "planned",
+      "installable": false,
+      "description": "Planned adapter for reproducible CellProfiler pipelines.",
+      "tools": []
+    },
+    {
+      "name": "blastplus",
+      "display_name": "BLAST+",
+      "category": "sequence-analysis",
+      "kind": "open-source",
+      "status": "planned",
+      "installable": false,
+      "description": "Planned adapter for local sequence similarity analysis using BLAST+.",
+      "tools": []
+    }
+  ]
+}
