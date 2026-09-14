@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.2",
+  "schema_version": "1.3",
   "product": "BioMCP",
   "distribution": "biomcp",
   "servers": [
@@ -46,8 +46,10 @@
       "command": "biomcp-llm",
       "transport": ["stdio"],
       "dependencies": [],
-      "config": ["BIOMCP_LLM_BASE_URL", "BIOMCP_LLM_API_KEY", "BIOMCP_LLM_MODEL"],
-      "description": "Initial OpenAI-compatible model runtime bridge. Provider abstraction and controlled MCP tool orchestration are under development.",
+      "config": ["BIOMCP_LLM_PROVIDER", "BIOMCP_LLM_BASE_URL", "BIOMCP_LLM_API_KEY", "BIOMCP_LLM_MODEL", "BIOMCP_LLM_TIMEOUT_SECONDS", "BIOMCP_LLM_MAX_RESPONSE_BYTES"],
+      "providers": ["openai-compatible", "ollama", "vllm"],
+      "capabilities": ["model_discovery", "chat", "responses", "streaming", "structured_output", "tool_calling"],
+      "description": "Provider based model runtime bridge for OpenAI compatible hosted and local endpoints. MCP tool execution remains a separate controlled layer.",
       "tools": ["list_models", "complete"]
     },
     {
