@@ -37,7 +37,10 @@ def test_real_mcp_client_session_discovers_and_calls_allowlisted_tool():
     assert tools[0]["inputSchema"]
     result = broker.call_tool("echo", {"value": "scientific"})
     assert result["is_error"] is False
-    assert result["structured_content"]["value"] == "scientific"
+    assert result["structured_content"] is None
+    assert result["content"]
+    assert result["content"][0]["type"] == "text"
+    assert json.loads(result["content"][0]["text"])["value"] == "scientific"
 
 
 def test_tool_allowlist_blocks_execution():
