@@ -260,3 +260,30 @@ def test_per_call_retry_override_is_bounded():
     provider = OpenAICompatibleProvider(ProviderConfig("test", "http://127.0.0.1:9000/v1"), max_retries=3)
     with pytest.raises(ValueError, match="retries must be 0..3"):
         provider.request("models", retries=4)
+
+
+def test_retry_backoff_is_bounded_exponential(monkeypatch):
+    provider = OpenAICompatibleProvider(
+        ProviderConfig("test", "http://127.0.0.1:9000/v1"),
+        max_retries=3,
+        retry_backoff_seconds=2.0,
+    )
+    delays = []
+    monkeypatch.setattr("biomcp.llm.time.sleep", delays.append)
+    provider._retry_delay(0)
+    provider._retry_delay(1)
+    provider._retry_delay(2)
+    provider._retry_delay(3)
+    assert delays == [2.0, 4.0, 8.0, 16.0]
+
+
+def test_retry_backoff_environment_is_bounded(monkeypatch):
+    monkeypatch.setenv("BIOMCP_LLM_RETRY_BACKOFF_SECONDS", "1.5")
+    provider = OpenAICompatibleProvider.from_environment()
+    assert provider.retry_backoff_seconds == 1.5
+
+
+def test_invalid_retry_backoff_configuration_is_rejected(monkeypatch):
+    monkeypatch.setenv("BIOMCP_LLM_RETRY_BACKOFF_SECONDS", "30.1")
+    with pytest.raises(ValueError, match="retry_backoff_seconds must be 0..30"):
+        OpenAICompatibleProvider.from_environment()
