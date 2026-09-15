@@ -65,6 +65,7 @@ def main() -> None:
     assert asyncio.run(_tools("biomcp-llm")) == [
         "list_models",
         "complete",
+        "provider_capabilities",
         "mcp_capabilities",
         "mcp_call_tool",
     ]
@@ -88,6 +89,21 @@ def main() -> None:
         "BIOMCP_LLM_API_KEY": "test-key",
     }
     try:
+        capabilities = asyncio.run(
+            _call("biomcp-llm", "provider_capabilities", {}, env=env)
+        )
+        assert capabilities["provider"] == "openai-compatible"
+        assert capabilities["base_url"] == base_url
+        assert capabilities["capabilities"] == {
+            "model_discovery": True,
+            "chat": True,
+            "responses": True,
+            "streaming": True,
+            "structured_output": True,
+            "tool_calling": True,
+        }
+        assert "test-key" not in json.dumps(capabilities)
+
         result = asyncio.run(
             _call(
                 "biomcp-llm",
