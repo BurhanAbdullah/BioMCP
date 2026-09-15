@@ -29,6 +29,25 @@ class ProviderCapabilities:
 
 
 @dataclass(frozen=True)
+class UsageMetadata:
+    """Provider-neutral token usage extracted from a provider response."""
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    total_tokens: int | None = None
+    cached_input_tokens: int | None = None
+
+    def as_dict(self) -> dict[str, int]:
+        """Return only usage fields actually supplied by the provider."""
+        values = {
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "total_tokens": self.total_tokens,
+            "cached_input_tokens": self.cached_input_tokens,
+        }
+        return {key: value for key, value in values.items() if value is not None}
+
+
+@dataclass(frozen=True)
 class ProviderConfig:
     """Provider address and capability metadata; credentials are never stored here."""
     name: str
@@ -82,6 +101,36 @@ class OpenAICompatibleProvider:
     def _require(self, capability: str) -> None:
         if not getattr(self.config.capabilities, capability):
             raise RuntimeError(f"provider {self.config.name!r} does not advertise {capability}")
+
+    @staticmethod
+    def normalize_usage(response: Mapping[str, Any]) -> UsageMetadata:
+        """Normalize common OpenAI-compatible usage field names."""
+        usage = response.get("usage")
+        if not isinstance(usage, Mapping):
+            return UsageMetadata()
+        input_tokens = usage.get("input_tokens", usage.get("prompt_tokens"))
+        output_tokens = usage.get("output_tokens", usage.get("completion_tokens"))
+        total_tokens = usage.get("total_tokens")
+        details = usage.get("prompt_tokens_details")
+        cached = usage.get("cached_input_tokens")
+        if cached is None and isinstance(details, Mapping):
+            cached = details.get("cached_tokens")
+        values = (input_tokens, output_tokens, total_tokens, cached)
+        if any(value is not None and (not isinstance(value, int) or isinstance(value, bool) or value < 0) for value in values):
+            raise ValueError("LLM provider returned invalid token usage metadata")
+        return UsageMetadata(input_tokens, output_tokens, total_tokens, cached)
+
+    @classmethod
+    def normalize_response(cls, response: Mapping[str, Any]) -> dict[str, Any]:
+        """Return a provider response with provider-neutral usage metadata."""
+        if not isinstance(response, Mapping):
+            raise ValueError("LLM provider response must be an object")
+        normalized = dict(response)
+        usage = cls.normalize_usage(response)
+        usage_dict = usage.as_dict()
+        if usage_dict:
+            normalized["_biomcp"] = {"usage": usage_dict}
+        return normalized
 
     def build_request(
         self,
@@ -225,7 +274,7 @@ class OpenAICompatibleProvider:
             payload["tools"] = [dict(tool) for tool in tools]
         if stream:
             return self.stream("chat/completions", payload)
-        return self.request("chat/completions", payload)
+        return self.normalize_response(self.request("chat/completions", payload))
 
     def complete(self, *, model: str, input: Any, stream: bool = False,
                  response_format: Mapping[str, Any] | None = None,
@@ -238,7 +287,7 @@ class OpenAICompatibleProvider:
                                      temperature=temperature, max_output_tokens=max_output_tokens)
         if stream:
             return self.stream("responses", payload)
-        return self.request("responses", payload)
+        return self.normalize_response(self.request("responses", payload))
 
 
 def builtin_providers() -> dict[str, ProviderConfig]:
