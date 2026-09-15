@@ -1,7 +1,12 @@
-name: Deploy BioMCP website
+name: Validate BioMCP website docs
 
 on:
   push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/pages.yml'
+  pull_request:
     branches: [main]
     paths:
       - 'docs/**'
@@ -10,32 +15,27 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
 
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
+      - name: Validate website entrypoint
+        run: test -s docs/index.html
 
-      - name: Upload website artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: docs
+      - name: Validate linked local pages
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          root = Path("docs")
+          html = (root / "index.html").read_text(encoding="utf-8")
+          links = re.findall(r'href=[\"\']([^\"\']+)[\"\']', html)
+          local = [link.split("#", 1)[0].split("?", 1)[0] for link in links]
+          missing = [link for link in local if link and not link.startswith(("http://", "https://", "mailto:", "javascript:")) and not (root / link).exists()]
+          if missing:
+              raise SystemExit("Missing local website targets: " + ", ".join(sorted(set(missing))))
+          PY
