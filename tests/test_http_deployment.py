@@ -4,6 +4,7 @@ import pytest
 from mcp.server.mcpserver import MCPServer
 
 from biomcp.http import create_streamable_http_app, transport_security_from_environment
+from biomcp_servers.llm import create_http_app as create_llm_http_app
 
 
 def test_http_security_requires_explicit_host_allowlist(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -40,3 +41,14 @@ def test_streamable_http_app_is_real_asgi_app() -> None:
     assert callable(app)
     assert any(getattr(route, "path", None) == "/mcp" for route in app.routes)
     assert server.session_manager is not None
+
+
+def test_llm_http_factory_builds_asgi_app(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BIOMCP_HTTP_ALLOWED_HOSTS", "mcp.example.org:*")
+    monkeypatch.delenv("BIOMCP_LLM_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    app = create_llm_http_app()
+
+    assert callable(app)
+    assert any(getattr(route, "path", None) == "/mcp" for route in app.routes)
