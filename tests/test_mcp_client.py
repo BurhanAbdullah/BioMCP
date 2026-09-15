@@ -34,7 +34,12 @@ def test_validate_tool_arguments_rejects_extra_properties():
 
 def test_discover_tools_uses_live_mcp_protocol():
     tools = discover_tools("llm")
-    assert [tool["name"] for tool in tools] == ["list_models", "complete"]
+    assert [tool["name"] for tool in tools] == [
+        "list_models",
+        "complete",
+        "mcp_capabilities",
+        "mcp_call_tool",
+    ]
     assert all("input_schema" in tool for tool in tools)
 
 
