@@ -12,6 +12,7 @@ from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 
+from biomcp.http import create_streamable_http_app
 from biomcp.llm import OpenAICompatibleProvider
 from biomcp.mcp_broker import MCPToolBroker, broker_config_from_environment
 
@@ -65,6 +66,15 @@ def create_server() -> MCPServer:
         return broker.call_tool(name, arguments)
 
     return mcp
+
+
+def create_http_app() -> Any:
+    """Create the LLM MCP ASGI app for horizontally scaled deployment.
+
+    Configure ``BIOMCP_HTTP_ALLOWED_HOSTS`` before starting the app and use
+    an ASGI process manager such as Uvicorn to provide multiple workers.
+    """
+    return create_streamable_http_app(create_server())
 
 
 def main() -> None:
