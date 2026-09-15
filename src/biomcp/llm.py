@@ -65,7 +65,8 @@ class OpenAICompatibleProvider:
     """OpenAI-compatible transport with explicit capability and size controls."""
 
     def __init__(self, config: ProviderConfig, *, api_key: str | None = None,
-                 timeout_seconds: int = 120, max_response_bytes: int = 8 * 1024 * 1024) -> None:
+                 timeout_seconds: int = 120, max_response_bytes: int = 8 * 1024 * 1024,
+                 max_retries: int = 1) -> None:
         parsed = urllib.parse.urlsplit(config.base_url.rstrip("/"))
         if parsed.scheme not in {"http", "https"} or not parsed.netloc or parsed.username or parsed.password:
             raise ValueError("provider base_url must be an HTTP(S) URL without embedded credentials")
@@ -73,9 +74,12 @@ class OpenAICompatibleProvider:
             raise ValueError("timeout_seconds must be 1..900")
         if not 1 <= max_response_bytes <= 64 * 1024 * 1024:
             raise ValueError("max_response_bytes must be 1..67108864")
+        if not 0 <= max_retries <= 3:
+            raise ValueError("max_retries must be 0..3")
         self.config = config
         self.timeout_seconds = timeout_seconds
         self.max_response_bytes = max_response_bytes
+        self.max_retries = max_retries
         self._api_key = api_key
         self._opener = urllib.request.build_opener(_NoRedirect())
 
@@ -91,12 +95,20 @@ class OpenAICompatibleProvider:
             api_key = os.getenv("OPENAI_API_KEY")
         timeout = int(os.getenv("BIOMCP_LLM_TIMEOUT_SECONDS", "120"))
         max_bytes = int(os.getenv("BIOMCP_LLM_MAX_RESPONSE_BYTES", str(8 * 1024 * 1024)))
+        max_retries = int(os.getenv("BIOMCP_LLM_MAX_RETRIES", "1"))
         return cls(
             ProviderConfig(profile.name, base_url, profile.api_key_env, profile.capabilities),
             api_key=api_key,
             timeout_seconds=timeout,
             max_response_bytes=max_bytes,
+            max_retries=max_retries,
         )
+
+    @staticmethod
+    def _validate_retries(retries: int) -> int:
+        if not 0 <= retries <= 3:
+            raise ValueError("retries must be 0..3")
+        return retries
 
     def _require(self, capability: str) -> None:
         if not getattr(self.config.capabilities, capability):
@@ -189,9 +201,8 @@ class OpenAICompatibleProvider:
             headers["Authorization"] = f"Bearer {self._api_key}"
         return headers
 
-    def request(self, path: str, payload: dict[str, Any] | None = None, *, retries: int = 1) -> dict[str, Any]:
-        if not 0 <= retries <= 3:
-            raise ValueError("retries must be 0..3")
+    def request(self, path: str, payload: dict[str, Any] | None = None, *, retries: int | None = None) -> dict[str, Any]:
+        retries = self.max_retries if retries is None else self._validate_retries(retries)
         raw = None if payload is None else json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
             f"{self.config.base_url}/{path.lstrip('/')}",
@@ -219,9 +230,10 @@ class OpenAICompatibleProvider:
                 raise RuntimeError("LLM endpoint unavailable or request timed out") from exc
         raise RuntimeError("LLM request failed")
 
-    def stream(self, path: str, payload: dict[str, Any], *, retries: int = 1) -> Iterator[dict[str, Any]]:
+    def stream(self, path: str, payload: dict[str, Any], *, retries: int | None = None) -> Iterator[dict[str, Any]]:
         """Yield JSON objects from an SSE response with a cumulative byte limit."""
         self._require("streaming")
+        retries = self.max_retries if retries is None else self._validate_retries(retries)
         raw = json.dumps({**payload, "stream": True}).encode("utf-8")
         req = urllib.request.Request(
             f"{self.config.base_url}/{path.lstrip('/')}",
@@ -265,7 +277,8 @@ class OpenAICompatibleProvider:
     def chat(self, *, model: str, messages: list[Mapping[str, Any]], stream: bool = False,
              temperature: float | None = None, max_tokens: int | None = None,
              response_format: Mapping[str, Any] | None = None,
-             tools: list[Mapping[str, Any]] | None = None) -> dict[str, Any] | Iterator[dict[str, Any]]:
+             tools: list[Mapping[str, Any]] | None = None,
+             retries: int | None = None) -> dict[str, Any] | Iterator[dict[str, Any]]:
         """Call the OpenAI-compatible Chat Completions endpoint."""
         self._require("chat")
         if response_format is not None:
@@ -285,21 +298,22 @@ class OpenAICompatibleProvider:
         if tools is not None:
             payload["tools"] = [dict(tool) for tool in tools]
         if stream:
-            return self.stream("chat/completions", payload)
-        return self.normalize_response(self.request("chat/completions", payload))
+            return self.stream("chat/completions", payload, retries=retries)
+        return self.normalize_response(self.request("chat/completions", payload, retries=retries))
 
     def complete(self, *, model: str, input: Any, stream: bool = False,
                  response_format: Mapping[str, Any] | None = None,
                  tools: list[Mapping[str, Any]] | None = None,
                  temperature: float | None = None,
-                 max_output_tokens: int | None = None) -> dict[str, Any] | Iterator[dict[str, Any]]:
+                 max_output_tokens: int | None = None,
+                 retries: int | None = None) -> dict[str, Any] | Iterator[dict[str, Any]]:
         self._require("responses")
         payload = self.build_request(model=model, input=input, stream=stream,
                                      response_format=response_format, tools=tools,
                                      temperature=temperature, max_output_tokens=max_output_tokens)
         if stream:
-            return self.stream("responses", payload)
-        return self.normalize_response(self.request("responses", payload))
+            return self.stream("responses", payload, retries=retries)
+        return self.normalize_response(self.request("responses", payload, retries=retries))
 
 
 def builtin_providers() -> dict[str, ProviderConfig]:
