@@ -1,9 +1,4 @@
-"""Controlled MCP client operations for registered BioMCP servers.
-
-The client uses the machine readable registry as a policy boundary. Only
-installable servers may be launched and only tools declared by the registry
-may be invoked through this module.
-"""
+"""Controlled MCP client operations for registered BioMCP servers."""
 from __future__ import annotations
 
 import asyncio
@@ -11,6 +6,7 @@ import json
 import os
 from typing import Any
 
+from jsonschema import Draft202012Validator, SchemaError
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
@@ -37,6 +33,28 @@ def _declared_tool(server: str, tool: str) -> None:
         raise ValueError(f"Tool {tool!r} is not declared for registered server {server!r}")
 
 
+def _tool_schema(tool: Any) -> dict[str, Any]:
+    schema = getattr(tool, "inputSchema", None)
+    if schema is None:
+        schema = getattr(tool, "input_schema", None)
+    if not isinstance(schema, dict):
+        raise ValueError(f"MCP tool {tool.name!r} did not provide a valid input schema")
+    return schema
+
+
+def _validate_tool_arguments(tool: Any, arguments: dict[str, Any]) -> None:
+    schema = _tool_schema(tool)
+    try:
+        validator = Draft202012Validator(schema)
+        errors = sorted(validator.iter_errors(arguments), key=lambda error: list(error.path))
+    except SchemaError as exc:
+        raise ValueError(f"MCP tool {tool.name!r} advertised an invalid input schema") from exc
+    if errors:
+        error = errors[0]
+        path = ".".join(str(part) for part in error.path) or "$"
+        raise ValueError(f"invalid arguments for tool {tool.name!r} at {path}: {error.message}")
+
+
 async def _discover_tools(server: str) -> list[dict[str, Any]]:
     params = _server_parameters(server)
     async with stdio_client(params) as (read, write):
@@ -47,7 +65,7 @@ async def _discover_tools(server: str) -> list[dict[str, Any]]:
                 {
                     "name": tool.name,
                     "description": tool.description,
-                    "input_schema": tool.inputSchema,
+                    "input_schema": _tool_schema(tool),
                 }
                 for tool in result.tools
             ]
@@ -59,6 +77,11 @@ async def _call_tool(server: str, tool: str, arguments: dict[str, Any]) -> dict[
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
+            listed = await session.list_tools()
+            live_tool = next((item for item in listed.tools if item.name == tool), None)
+            if live_tool is None:
+                raise ValueError(f"Tool {tool!r} is not advertised by registered server {server!r}")
+            _validate_tool_arguments(live_tool, arguments)
             result = await session.call_tool(tool, arguments)
             response: dict[str, Any] = {"is_error": bool(result.is_error)}
             if result.structured_content is not None:
@@ -68,12 +91,10 @@ async def _call_tool(server: str, tool: str, arguments: dict[str, Any]) -> dict[
 
 
 def discover_tools(server: str) -> list[dict[str, Any]]:
-    """Discover tools from a registered local MCP server."""
     return asyncio.run(_discover_tools(server))
 
 
 def call_tool(server: str, tool: str, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Invoke a registry-declared tool on a registered local MCP server."""
     if arguments is None:
         arguments = {}
     if not isinstance(arguments, dict):
@@ -82,7 +103,6 @@ def call_tool(server: str, tool: str, arguments: dict[str, Any] | None = None) -
 
 
 def json_arguments(value: str) -> dict[str, Any]:
-    """Parse CLI JSON arguments and require an object."""
     try:
         parsed = json.loads(value)
     except json.JSONDecodeError as exc:
