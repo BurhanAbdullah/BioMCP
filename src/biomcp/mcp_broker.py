@@ -155,32 +155,41 @@ class MCPToolBroker:
             raise RuntimeError("MCP tool is not allowlisted")
         if not isinstance(arguments, dict):
             raise ValueError("arguments must be an object")
+
+        validation_error: Exception | None = None
+        payload: dict[str, Any] | None = None
         async with stdio_client(self._parameters()) as (read, write):
             async with ClientSession(read, write) as session:
                 await asyncio.wait_for(session.initialize(), timeout=self.config.timeout_seconds)
                 result = await asyncio.wait_for(session.list_tools(), timeout=self.config.timeout_seconds)
                 advertised = next((tool for tool in result.tools if tool.name == name), None)
                 if advertised is None:
-                    raise RuntimeError("MCP tool is not advertised by the downstream server")
-                schema = self._schema(advertised)
-                validator = Draft202012Validator(schema)
-                errors = sorted(validator.iter_errors(arguments), key=lambda error: list(error.path))
-                if errors:
-                    detail = "; ".join(error.message for error in errors[:3])
-                    raise ValueError(f"MCP tool arguments failed schema validation: {detail}")
-                result = await asyncio.wait_for(session.call_tool(name, arguments), timeout=self.config.timeout_seconds)
-                structured = _model_field(result, "structured_content", "structuredContent")
-                structured = _json_safe(structured)
-                content = [_json_safe(item) for item in result.content]
-                payload = {
-                    "is_error": bool(result.is_error),
-                    "content": content,
-                    "structured_content": structured,
-                }
-                encoded = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
-                if len(encoded) > self.config.max_result_bytes:
-                    raise RuntimeError("MCP tool result exceeds configured result limit")
-                return payload
+                    validation_error = RuntimeError("MCP tool is not advertised by the downstream server")
+                else:
+                    schema = self._schema(advertised)
+                    validator = Draft202012Validator(schema)
+                    errors = sorted(validator.iter_errors(arguments), key=lambda error: list(error.path))
+                    if errors:
+                        detail = "; ".join(error.message for error in errors[:3])
+                        validation_error = ValueError(f"MCP tool arguments failed schema validation: {detail}")
+                    else:
+                        result = await asyncio.wait_for(session.call_tool(name, arguments), timeout=self.config.timeout_seconds)
+                        structured = _model_field(result, "structured_content", "structuredContent")
+                        structured = _json_safe(structured)
+                        content = [_json_safe(item) for item in result.content]
+                        payload = {
+                            "is_error": bool(result.is_error),
+                            "content": content,
+                            "structured_content": structured,
+                        }
+                        encoded = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
+                        if len(encoded) > self.config.max_result_bytes:
+                            validation_error = RuntimeError("MCP tool result exceeds configured result limit")
+
+        if validation_error is not None:
+            raise validation_error
+        assert payload is not None
+        return payload
 
     def list_tools(self) -> list[dict[str, Any]]:
         return _run(self._list_tools())
