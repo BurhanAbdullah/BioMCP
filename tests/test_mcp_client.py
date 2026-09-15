@@ -1,8 +1,35 @@
-import json
-
 import pytest
 
-from biomcp.mcp_client import call_tool, discover_tools, json_arguments
+from biomcp.mcp_client import _validate_tool_arguments, call_tool, discover_tools, json_arguments
+
+
+class _Tool:
+    name = "sample"
+    input_schema = {
+        "type": "object",
+        "properties": {"path": {"type": "string"}},
+        "required": ["path"],
+        "additionalProperties": False,
+    }
+
+
+def test_validate_tool_arguments_accepts_valid_schema():
+    _validate_tool_arguments(_Tool(), {"path": "sample.tif"})
+
+
+def test_validate_tool_arguments_rejects_missing_required_field():
+    with pytest.raises(ValueError, match="required property"):
+        _validate_tool_arguments(_Tool(), {})
+
+
+def test_validate_tool_arguments_rejects_wrong_type():
+    with pytest.raises(ValueError, match="is not of type 'string'"):
+        _validate_tool_arguments(_Tool(), {"path": 123})
+
+
+def test_validate_tool_arguments_rejects_extra_properties():
+    with pytest.raises(ValueError, match="Additional properties are not allowed"):
+        _validate_tool_arguments(_Tool(), {"path": "sample.tif", "secret": "x"})
 
 
 def test_discover_tools_uses_live_mcp_protocol():
