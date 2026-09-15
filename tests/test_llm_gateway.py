@@ -66,6 +66,7 @@ def test_chat_request_is_openai_compatible(monkeypatch):
     def fake_request(path, payload=None, **kwargs):
         seen["path"] = path
         seen["payload"] = payload
+        seen["kwargs"] = kwargs
         return {
             "id": "chat-1",
             "usage": {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5},
@@ -79,11 +80,13 @@ def test_chat_request_is_openai_compatible(monkeypatch):
         max_tokens=32,
         response_format={"type": "json_schema", "json_schema": {"name": "answer"}},
         tools=[{"type": "function", "function": {"name": "inspect_image"}}],
+        retries=2,
     )
     assert result["id"] == "chat-1"
     assert result["_biomcp"]["usage"] == {"input_tokens": 3, "output_tokens": 2, "total_tokens": 5}
     assert seen["path"] == "chat/completions"
     assert seen["payload"]["messages"][0]["content"] == "hello"
+    assert seen["kwargs"]["retries"] == 2
     assert seen["payload"]["max_tokens"] == 32
     assert seen["payload"]["response_format"]["type"] == "json_schema"
     assert seen["payload"]["tools"][0]["function"]["name"] == "inspect_image"
@@ -94,10 +97,11 @@ def test_complete_normalizes_responses_usage(monkeypatch):
 
     def fake_request(path, payload=None, **kwargs):
         assert path == "responses"
+        assert kwargs["retries"] == 0
         return {"id": "resp-1", "usage": {"input_tokens": 11, "output_tokens": 6, "total_tokens": 17}}
 
     monkeypatch.setattr(provider, "request", fake_request)
-    result = provider.complete(model="m", input="hello")
+    result = provider.complete(model="m", input="hello", retries=0)
     assert result["id"] == "resp-1"
     assert result["_biomcp"]["usage"] == {"input_tokens": 11, "output_tokens": 6, "total_tokens": 17}
 
@@ -238,3 +242,21 @@ def test_provider_environment_rejects_embedded_credentials(monkeypatch):
     monkeypatch.setenv("BIOMCP_LLM_BASE_URL", "https://user:secret@example.com/v1")
     with pytest.raises(ValueError, match="without embedded credentials"):
         OpenAICompatibleProvider.from_environment()
+
+
+def test_provider_environment_configures_bounded_retries(monkeypatch):
+    monkeypatch.setenv("BIOMCP_LLM_MAX_RETRIES", "3")
+    provider = OpenAICompatibleProvider.from_environment()
+    assert provider.max_retries == 3
+
+
+def test_provider_rejects_invalid_retry_configuration(monkeypatch):
+    monkeypatch.setenv("BIOMCP_LLM_MAX_RETRIES", "4")
+    with pytest.raises(ValueError, match="max_retries must be 0..3"):
+        OpenAICompatibleProvider.from_environment()
+
+
+def test_per_call_retry_override_is_bounded():
+    provider = OpenAICompatibleProvider(ProviderConfig("test", "http://127.0.0.1:9000/v1"), max_retries=3)
+    with pytest.raises(ValueError, match="retries must be 0..3"):
+        provider.request("models", retries=4)
