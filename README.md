@@ -20,71 +20,73 @@
 
 ---
 
-## Overview
+## 🌟 What is BioMCP?
 
-**BioMCP** is an open-source interoperability layer for scientific computing built around the **Model Context Protocol (MCP)**.
+**BioMCP** is an open-source scientific interoperability platform built around the **Model Context Protocol (MCP)**.
 
-Scientific workflows often span Python packages, command-line programs, desktop applications, model endpoints, and independent MCP servers. BioMCP provides a consistent interface for discovering, configuring, validating, and invoking these systems without reimplementing their scientific algorithms.
+Scientific computing is spread across Python libraries, command-line programs, desktop applications, image-analysis tools, model runtimes, and independent MCP services. BioMCP provides a common way to discover, configure, validate, and invoke these systems from MCP-compatible clients.
 
-BioMCP is designed around a registry and adapter model, with explicit execution boundaries, structured tool contracts, and executable validation.
+BioMCP focuses on interoperability rather than reimplementing scientific software. The scientific application remains responsible for its algorithms and scientific computation; BioMCP provides the integration, execution boundary, protocol interface, configuration, and result transport.
 
-### What BioMCP provides
+### BioMCP provides
 
-- MCP servers for scientific software and services
-- Registry-driven integration metadata
-- Capability and tool discovery
-- Input and argument validation
+- MCP servers for scientific applications and services
+- Registry-driven integration discovery
+- MCP capability and tool discovery
+- Typed tool contracts and argument validation
 - Controlled local process execution
-- External MCP client integration
+- External MCP server integration
 - LLM provider integration
 - CLI-based installation and configuration
 - MCP client configuration generation
-- Bounded timeouts and result sizes
+- Execution timeouts and bounded results
 - Credential and environment isolation
 - Package and installed-consumer validation
 
-BioMCP is an interoperability layer. Scientific computation remains in the scientific software being integrated.
+## 🤝 Scientific Interoperability Vision
 
-## Installation
+BioMCP is intended to make scientific software easier to use from modern AI applications without requiring every scientific project to build its own MCP integration from scratch.
+
+The project is built around a few practical goals:
+
+- **Interoperability**: Connect different scientific systems through MCP.
+- **Reproducibility**: Make integrations, dependencies, configuration, and execution requirements explicit.
+- **Safety**: Bound local execution, network access, credentials, timeouts, and outputs where appropriate.
+- **Extensibility**: Add scientific applications through explicit adapters and registry definitions.
+- **Validation**: Treat protocol compatibility and package usability as executable properties.
+- **Scientific integrity**: Preserve the distinction between interoperability software and the scientific software performing the computation.
+
+## 🚀 Getting Started
+
+### 📖 Quick start
+
+> **🚀 New to BioMCP? Start here!**
+
+Install the package:
 
 ```bash
 pip install biomcp
 ```
 
-Verify the installation:
+Check the installation:
 
 ```bash
 biomcp doctor
 ```
 
-List available integrations:
+See the available integrations:
 
 ```bash
 biomcp list
 ```
 
-## Quick Start
-
-### List integrations
-
-```bash
-biomcp list
-```
-
-### Diagnose an integration
-
-```bash
-biomcp doctor
-biomcp doctor --server bioimage
-```
-
-### Run an MCP server
+Launch an MCP server:
 
 ```bash
 biomcp run bioimage
 ```
 
-Other registered servers can be launched in the same way:
+Other registered servers can be launched with the same command:
 
 ```bash
 biomcp run imagej
@@ -93,28 +95,105 @@ biomcp run llm
 
 ### Configure an MCP client
 
+BioMCP can generate configuration for supported MCP clients:
+
 ```bash
 biomcp install --servers bioimage,imagej,llm --clients claude-desktop
 ```
 
-Preview changes without modifying configuration:
+Preview the changes first:
 
 ```bash
 biomcp install --servers bioimage,llm --clients generic --dry-run
 ```
 
-Supported client configuration targets include generic MCP configuration as well as supported desktop and coding clients exposed by the CLI.
+For non-interactive installation of selected integrations:
 
-## CLI
+```bash
+biomcp install --servers bioimage,llm --clients generic --yes
+```
+
+The installer uses the BioMCP registry to determine the server command, dependencies, configuration requirements, and supported integration metadata.
+
+## 🧬 Current Integrations
+
+| Integration | Description | Status |
+|---|---|---|
+| **BioImage** | Image inspection, intensity summaries, and thresholding tools | Experimental |
+| **ImageJ / Fiji** | Controlled bridge to a configured local ImageJ/Fiji runtime | Experimental |
+| **LLM Gateway** | Provider-oriented integration for OpenAI-compatible model endpoints | Experimental |
+| **BioNuclei** | External scientific MCP service integration | Validated / External |
+
+BioMCP uses conservative lifecycle states:
+
+- **Planned** — proposed integration without an installable implementation.
+- **Experimental** — executable implementation exists but the complete validation gate is not yet satisfied.
+- **Validated** — implementation and project checks provide sufficient evidence for the stated capability.
+- **External** — the scientific system is maintained outside this repository.
+
+The presence of a planned software project in the roadmap does not mean that an adapter has already been implemented.
+
+## 🧠 MCP
+
+The **Model Context Protocol** provides the common protocol boundary used by BioMCP.
+
+MCP allows AI applications to work with external tools and services through standardized interfaces for capabilities, tools, resources, prompts, and structured results.
+
+BioMCP currently uses MCP for:
+
+- Tool discovery
+- Capability discovery
+- Tool schema inspection
+- Argument validation
+- Controlled tool execution
+- Structured results
+- MCP client/server interoperability
+- External MCP service integration
+
+Where practical, BioMCP validates integrations using actual MCP client sessions rather than relying only on imports or isolated Python unit tests.
+
+Useful MCP resources:
+
+- [Model Context Protocol](https://modelcontextprotocol.io/)
+- [MCP documentation](https://modelcontextprotocol.io/docs)
+- [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)
+
+## 📦 Installation
+
+BioMCP is distributed as a Python package.
+
+```bash
+pip install biomcp
+```
+
+Python 3.10+ is required.
+
+### Optional integrations
+
+Integration families can be installed through optional dependencies when required:
+
+```bash
+pip install 'biomcp[bioimage]'
+```
+
+Testing dependencies:
+
+```bash
+pip install 'biomcp[test]'
+```
+
+The core package does not require every scientific application to be installed. Integrations that depend on local software, executables, models, or other runtime assets document those requirements separately.
+
+## 🛠️ CLI Commands
 
 | Command | Description |
 |---|---|
+| `biomcp install` | Install selected integrations and configure MCP clients |
 | `biomcp list` | List registered integrations and lifecycle state |
-| `biomcp tools` | Inspect tools exposed by a registered server |
-| `biomcp call` | Invoke a registered MCP tool |
-| `biomcp install` | Install integrations and configure MCP clients |
-| `biomcp doctor` | Check dependencies, executables, and configuration |
+| `biomcp tools <server>` | Inspect tools exposed by a registered server |
+| `biomcp call <server> <tool>` | Invoke a registered MCP tool |
 | `biomcp run <server>` | Launch a registered MCP server |
+| `biomcp doctor` | Check dependencies, executables, and configuration |
 | `biomcp config` | Inspect and manage supported configuration |
 
 Examples:
@@ -122,62 +201,37 @@ Examples:
 ```bash
 biomcp list
 biomcp tools bioimage
-biomcp doctor --server imagej
+biomcp doctor --server bioimage
+biomcp run bioimage
 biomcp run llm
 ```
 
-## Current Integrations
+### Installation options
 
-BioMCP keeps the supported integration surface deliberately small until implementations have executable validation.
+```bash
+biomcp install --servers bioimage,llm --clients generic
+biomcp install --servers bioimage,llm --clients codex
+biomcp install --servers bioimage --clients claude-desktop --dry-run
+```
 
-| Integration | Scope | Status |
-|---|---|---|
-| **BioImage** | Image inspection, intensity summaries, thresholding | Experimental |
-| **ImageJ / Fiji** | Controlled bridge to a configured local runtime | Experimental |
-| **LLM Gateway** | OpenAI-compatible model endpoint integration | Experimental |
-| **BioNuclei** | External MCP service integration | Validated / External |
+## 🤖 LLM Gateway
 
-Lifecycle terminology is intentionally conservative:
+BioMCP includes an experimental **LLM Gateway** for connecting model endpoints to MCP-based workflows.
 
-- **Planned** — roadmap scope without an installable implementation.
-- **Experimental** — executable integration exists, but the complete validation gate has not been satisfied.
-- **Validated** — implementation and project checks provide sufficient evidence for the stated capability.
-- **External** — the scientific system is maintained outside this repository.
+The gateway is designed around provider configuration and explicit capability metadata rather than assuming that every provider implements the same API surface.
 
-## MCP Support
+### Provider profiles
 
-BioMCP uses MCP as the interoperability boundary rather than creating a separate protocol for every integration.
-
-The platform supports controlled MCP client/server interactions, including:
-
-- MCP capability discovery
-- Tool discovery
-- Tool schema inspection
-- Argument validation
-- Controlled tool invocation
-- Structured results
-- Timeout enforcement
-- Result-size limits
-- Restricted child environments
-- Sanitized configuration and execution errors
-
-Where practical, interoperability is tested through actual MCP client sessions instead of relying only on imports or isolated unit tests.
-
-## LLM Gateway
-
-BioMCP includes an experimental LLM Gateway for connecting MCP workflows to model endpoints.
-
-The gateway currently provides an OpenAI-compatible HTTP interface with provider-oriented configuration and capability metadata.
-
-Supported provider profiles currently include:
+Current provider profiles include:
 
 - OpenAI-compatible endpoints
 - Ollama
 - vLLM
 
-The gateway includes controls for:
+### Gateway capabilities
 
-- Provider configuration
+The gateway currently provides infrastructure for:
+
 - Model discovery
 - Provider capability discovery
 - Chat/completions requests
@@ -191,8 +245,10 @@ The gateway includes controls for:
 - Redirect protection
 - Credential isolation
 - Sanitized transport errors
+- Controlled MCP capability discovery
+- Controlled MCP tool execution
 
-Not every capability is enabled for every provider. Provider capabilities are explicitly advertised and enforced by the gateway.
+Capabilities are explicitly advertised and enforced by the provider configuration. A provider is not assumed to support a feature simply because another provider does.
 
 ### LLM configuration
 
@@ -212,11 +268,11 @@ export BIOMCP_LLM_MAX_RESPONSE_BYTES=16777216
 
 Credentials are supplied through the environment and are not stored in registry metadata.
 
-## Registry
+## 🔌 Registry
 
-BioMCP is registry-driven. The registry describes integrations and their executable requirements without embedding scientific implementation logic.
+BioMCP is registry-driven. Integration metadata is kept separate from the scientific implementation so that the CLI, installer, discovery layer, and client configuration system can work from the same source of truth.
 
-Registry metadata can describe:
+Registry entries can describe:
 
 - Integration identity
 - Lifecycle state
@@ -229,13 +285,13 @@ Registry metadata can describe:
 - Provider configuration
 - Runtime requirements
 
-This allows the CLI and client configuration layer to work from the same machine-readable integration definition.
+This also makes it possible to distinguish a documented roadmap item from an executable integration.
 
-## Scientific Integrations
+## 🔬 Scientific Software
 
-BioMCP is intended to provide a common integration surface for scientific software across multiple domains.
+BioMCP is intended to provide MCP interfaces for scientific software across multiple disciplines.
 
-Planned integration areas include:
+### Planned integration areas
 
 | Software | Intended scope |
 |---|---|
@@ -251,26 +307,18 @@ Planned integration areas include:
 | samtools / bcftools | Genomic data processing |
 | Nextflow / Snakemake | Reproducible workflow orchestration |
 
-Planned entries are roadmap items and do not imply that adapters are already implemented.
+These entries describe intended scope only. They do not imply that the corresponding adapters are already available.
 
-## Scientific Execution Boundary
+## 🧪 Scientific Tool Contracts
 
-BioMCP does not replace or duplicate the scientific software it integrates.
+BioMCP integrations are intended to expose scientific operations as explicit, inspectable tool contracts.
 
-The upstream scientific application remains responsible for its algorithms, models, measurements, simulations, and scientific interpretation. BioMCP is responsible for interoperability, execution control, protocol exposure, configuration, and result transport.
+A mature integration should document:
 
-This separation is particularly important for scientific reproducibility: an adapter should never turn a failed execution into a plausible-looking scientific result.
-
-## Tool Contracts
-
-BioMCP tools are intended to behave as typed scientific APIs.
-
-A robust integration should define:
-
-| Contract | Requirement |
+| Area | Requirement |
 |---|---|
 | Capability | Scientific purpose of the operation |
-| Inputs | Types, ranges, units, and file requirements where applicable |
+| Inputs | Types, ranges, units, and file requirements |
 | Outputs | Result schema and artifact semantics |
 | Dependencies | Libraries, executables, models, or datasets |
 | Execution | Process, network, and resource requirements |
@@ -278,11 +326,13 @@ A robust integration should define:
 | Provenance | Software identity, versions, and relevant parameters |
 | Validation | Evidence supporting the integration lifecycle state |
 
-## Security
+An execution failure must remain an execution failure. An adapter should never convert an unsuccessful scientific operation into a plausible-looking scientific result.
 
-Scientific integrations can execute local processes and communicate with external services, so execution boundaries are part of the platform design.
+## 🔐 Security and Execution
 
-BioMCP applies controls such as:
+Scientific integrations may execute local programs or communicate with external services. BioMCP therefore treats execution boundaries as part of the integration contract.
+
+Current controls include, where applicable:
 
 - Input and argument validation
 - Executable allowlisting
@@ -297,29 +347,60 @@ BioMCP applies controls such as:
 - Sanitized errors
 - Explicit network requirements
 
-Controls are applied according to the integration and execution model rather than assuming that every scientific backend has the same security requirements.
+The controls applied depend on the integration and its execution model.
 
-## Validation
+## 🧫 Validation and Testing
 
-BioMCP treats interoperability as an executable property.
+BioMCP is developed around executable validation rather than source-tree assumptions.
 
-Validation includes, where applicable:
+Validation can include:
 
 - Unit tests
 - Integration tests
 - MCP protocol tests
-- Real MCP client/server exchanges
+- Real MCP client/server sessions
 - Security regression tests
 - Wheel builds
 - Source-distribution builds
 - Installed-package consumer tests
-- CI validation across supported Python versions
+- CI testing across supported Python versions
 
-Source-tree imports alone are not considered sufficient evidence for a packaged integration.
+A source import succeeding is not sufficient evidence that a packaged integration works.
 
-A capability is described conservatively according to the implementation and validation evidence available for that capability.
+For integrations that expose MCP servers, protocol-level tests are used to verify tool discovery and invocation through the actual MCP interface where practical.
 
-## Package Structure
+## 💻 Development
+
+Clone the repository:
+
+```bash
+git clone https://github.com/BurhanAbdullah/BioMCP.git
+cd BioMCP
+python -m venv .venv
+```
+
+Activate the environment and install development dependencies:
+
+```bash
+python -m pip install --upgrade pip
+pip install -e '.[test]'
+```
+
+Run the test suite:
+
+```bash
+pytest
+```
+
+For BioImage development:
+
+```bash
+pip install -e '.[bioimage]'
+```
+
+ImageJ/Fiji integrations require an explicitly configured local installation.
+
+## 🧩 Package Structure
 
 ```text
 BioMCP/
@@ -350,65 +431,34 @@ biomcp-imagej
 biomcp-llm
 ```
 
-Optional dependency groups are available for integration families and testing.
+## 🧑‍💻 Contributing
 
-## Development
+Contributions are welcome.
 
-Clone the repository and create an isolated environment:
-
-```bash
-git clone https://github.com/BurhanAbdullah/BioMCP.git
-cd BioMCP
-python -m venv .venv
-```
-
-Activate the environment and install the test dependencies:
-
-```bash
-python -m pip install --upgrade pip
-pip install -e '.[test]'
-```
-
-Run the test suite:
-
-```bash
-pytest
-```
-
-BioImage support:
-
-```bash
-pip install 'biomcp[bioimage]'
-```
-
-ImageJ/Fiji requires an explicitly configured local installation.
-
-## Contributing
-
-New integrations should provide:
+For a new scientific integration, please provide:
 
 1. A clearly defined scientific use case.
-2. Registry metadata describing the integration.
+2. Registry metadata for the integration.
 3. A documented MCP tool contract.
 4. A controlled adapter or execution implementation.
 5. Input and output validation.
-6. Failure handling that preserves scientific correctness.
+6. Appropriate failure handling.
 7. Relevant protocol and integration tests.
 8. Packaging and installed-consumer validation where applicable.
 9. Documentation for dependencies, configuration, and runtime requirements.
 
-Integration lifecycle state should reflect evidence rather than roadmap intent.
+Before an integration is described as validated, its implementation and validation evidence should support the stated capability.
 
-## Roadmap
+## 🗺️ Roadmap
 
 ### Platform
 
 - Formal registry schema and versioning
-- Stronger capability discovery
-- Expanded MCP protocol regression coverage
-- Broader package-consumer validation
+- Expanded capability discovery
+- Broader MCP protocol regression coverage
+- More package-consumer validation
 - Additional execution controls
-- More reproducible integration environments
+- Reproducible integration environments
 
 ### LLM Gateway
 
@@ -437,34 +487,23 @@ Integration lifecycle state should reflect evidence rather than roadmap intent.
 - samtools / bcftools
 - Nextflow / Snakemake
 
-## Design Principles
+## 📚 Documentation
 
-- Scientific algorithms remain in the scientific software that owns them.
-- BioMCP provides interoperability rather than duplicate scientific implementations.
-- Registry state reflects executable reality.
-- MCP interoperability should be tested through real protocol paths.
-- Installed artifacts should be validated independently of the source tree.
-- Execution environments should be explicitly bounded.
-- Scientific outputs should be structured and inspectable.
-- Provenance should be retained where available.
-- Planned, experimental, validated, and external states remain distinct.
-- Integration quality matters more than integration count.
-
-## Status
-
-BioMCP is under active development.
-
-The project currently provides the platform foundation and a small set of executable integrations. Additional scientific systems are added as their interfaces, adapters, tests, packaging paths, and validation evidence become available.
-
-Capability claims are intentionally conservative. The presence of an upstream scientific application does not imply that a BioMCP adapter exists, and an adapter is not automatically considered validated merely because it is documented.
-
-## Links
-
-- [Repository](https://github.com/BurhanAbdullah/BioMCP)
-- [Technical documentation](https://burhanabdullah.github.io/BioNuclei-DomainRobust/biomcp.html)
-- [Community](https://burhanabdullah.github.io/BioNuclei-DomainRobust/community.html)
+- [BioMCP technical documentation](https://burhanabdullah.github.io/BioNuclei-DomainRobust/biomcp.html)
+- [BioMCP community](https://burhanabdullah.github.io/BioNuclei-DomainRobust/community.html)
 - [Model Context Protocol](https://modelcontextprotocol.io/)
+- [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)
 
-## License
+## 📄 License
 
-BioMCP is released under the MIT License.
+BioMCP is released under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+BioMCP builds on the open scientific software ecosystem and the Model Context Protocol community.
+
+Special thanks to the developers and maintainers of the scientific tools, libraries, model runtimes, and open protocols that make interoperable scientific computing possible.
+
+## About
+
+BioMCP is an open-source scientific interoperability platform for connecting scientific applications, tools, model runtimes, and MCP services through a consistent protocol and execution layer.
