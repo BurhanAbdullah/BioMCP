@@ -8,6 +8,7 @@ import shutil
 from dataclasses import dataclass
 from typing import Any
 
+from jsonschema import Draft202012Validator, SchemaError
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
@@ -95,18 +96,44 @@ def _run(coro):
     return asyncio.run(coro)
 
 
+def _model_field(value: Any, *names: str) -> Any:
+    for name in names:
+        if hasattr(value, name):
+            return getattr(value, name)
+    return None
+
+
+def _json_safe(value: Any) -> Any:
+    if hasattr(value, "model_dump"):
+        return value.model_dump(mode="json")
+    return value
+
+
 class MCPToolBroker:
     """Discover and invoke an explicitly allowlisted downstream MCP server."""
     def __init__(self, config: MCPBrokerConfig):
         self.config = config
         resolved = os.path.realpath(shutil.which(config.command[0]) or config.command[0])
-        if resolved not in config.allowed_executables:
+        allowed = {os.path.realpath(path) for path in config.allowed_executables}
+        if resolved not in allowed:
             raise ValueError("MCP broker command executable is not allowlisted")
 
     def _parameters(self) -> StdioServerParameters:
         env = {"PATH": os.environ.get("PATH", "")}
         env.update(dict(self.config.child_env))
         return StdioServerParameters(command=self.config.command[0], args=list(self.config.command[1:]), env=env)
+
+    @staticmethod
+    def _schema(tool: Any) -> dict[str, Any]:
+        schema = _model_field(tool, "input_schema", "inputSchema")
+        schema = _json_safe(schema)
+        if not isinstance(schema, dict):
+            raise RuntimeError("MCP server returned an invalid input schema")
+        try:
+            Draft202012Validator.check_schema(schema)
+        except SchemaError as exc:
+            raise RuntimeError("MCP server returned an invalid input schema") from exc
+        return schema
 
     async def _list_tools(self) -> list[dict[str, Any]]:
         async with stdio_client(self._parameters()) as (read, write):
@@ -116,10 +143,11 @@ class MCPToolBroker:
                 tools = []
                 for tool in result.tools:
                     if tool.name in self.config.allowed_tools:
-                        schema = getattr(tool, "input_schema", None) or getattr(tool, "inputSchema", None)
-                        if hasattr(schema, "model_dump"):
-                            schema = schema.model_dump(mode="json")
-                        tools.append({"name": tool.name, "description": tool.description, "inputSchema": schema})
+                        tools.append({
+                            "name": tool.name,
+                            "description": tool.description,
+                            "inputSchema": self._schema(tool),
+                        })
                 return tools
 
     async def _call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -130,13 +158,23 @@ class MCPToolBroker:
         async with stdio_client(self._parameters()) as (read, write):
             async with ClientSession(read, write) as session:
                 await asyncio.wait_for(session.initialize(), timeout=self.config.timeout_seconds)
+                result = await asyncio.wait_for(session.list_tools(), timeout=self.config.timeout_seconds)
+                advertised = next((tool for tool in result.tools if tool.name == name), None)
+                if advertised is None:
+                    raise RuntimeError("MCP tool is not advertised by the downstream server")
+                schema = self._schema(advertised)
+                validator = Draft202012Validator(schema)
+                errors = sorted(validator.iter_errors(arguments), key=lambda error: list(error.path))
+                if errors:
+                    detail = "; ".join(error.message for error in errors[:3])
+                    raise ValueError(f"MCP tool arguments failed schema validation: {detail}")
                 result = await asyncio.wait_for(session.call_tool(name, arguments), timeout=self.config.timeout_seconds)
-                structured = result.structured_content
-                if hasattr(structured, "model_dump"):
-                    structured = structured.model_dump(mode="json")
+                structured = _model_field(result, "structured_content", "structuredContent")
+                structured = _json_safe(structured)
+                content = [_json_safe(item) for item in result.content]
                 payload = {
                     "is_error": bool(result.is_error),
-                    "content": [item.model_dump(mode="json") if hasattr(item, "model_dump") else str(item) for item in result.content],
+                    "content": content,
                     "structured_content": structured,
                 }
                 encoded = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
