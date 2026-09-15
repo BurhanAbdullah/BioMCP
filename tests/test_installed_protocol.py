@@ -28,6 +28,7 @@ async def _call(command: str, name: str, arguments: dict, env: dict[str, str] | 
     params = StdioServerParameters(command=command, args=[], env=env)
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
+            await session.initialize()
             result = await session.call_tool(name, arguments)
             assert not result.is_error
             return result.structured_content
