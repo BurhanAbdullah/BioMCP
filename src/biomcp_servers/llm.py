@@ -36,6 +36,23 @@ def create_server() -> MCPServer:
         return provider.complete(model=chosen, input=[{"role": "system", "content": system}, {"role": "user", "content": prompt}], response_format=response_format, tools=tools, temperature=temperature, max_output_tokens=max_output_tokens)
 
     @mcp.tool()
+    def provider_capabilities() -> dict[str, Any]:
+        """Return the configured provider identity and advertised capabilities."""
+        capabilities = provider.config.capabilities
+        return {
+            "provider": provider.config.name,
+            "base_url": provider.config.base_url,
+            "capabilities": {
+                "model_discovery": capabilities.model_discovery,
+                "chat": capabilities.chat,
+                "responses": capabilities.responses,
+                "streaming": capabilities.streaming,
+                "structured_output": capabilities.structured_output,
+                "tool_calling": capabilities.tool_calling,
+            },
+        }
+
+    @mcp.tool()
     def mcp_capabilities() -> dict[str, Any]:
         """Discover the explicitly allowlisted downstream MCP tool surface."""
         broker = MCPToolBroker(broker_config_from_environment())
