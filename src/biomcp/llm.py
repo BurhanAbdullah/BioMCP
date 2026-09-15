@@ -116,8 +116,25 @@ class OpenAICompatibleProvider:
             raise ValueError("retries must be 0..3")
         return retries
 
-    def _retry_delay(self, attempt: int) -> None:
-        """Sleep before a retry using bounded exponential backoff."""
+    @staticmethod
+    def _retry_after_seconds(error: urllib.error.HTTPError) -> float | None:
+        """Return a bounded numeric Retry-After hint from a provider response."""
+        value = error.headers.get("Retry-After") if error.headers else None
+        if value is None:
+            return None
+        try:
+            seconds = float(value.strip())
+        except (AttributeError, ValueError):
+            return None
+        if seconds < 0:
+            return None
+        return min(seconds, 30.0)
+
+    def _retry_delay(self, attempt: int, *, retry_after_seconds: float | None = None) -> None:
+        """Sleep before a retry, honoring a bounded provider Retry-After hint."""
+        if retry_after_seconds is not None:
+            time.sleep(retry_after_seconds)
+            return
         if self.retry_backoff_seconds <= 0:
             return
         time.sleep(min(self.retry_backoff_seconds * (2 ** attempt), 30.0))
@@ -168,17 +185,11 @@ class OpenAICompatibleProvider:
             normalized["_biomcp"] = {"usage": usage_dict}
         return normalized
 
-    def build_request(
-        self,
-        *,
-        model: str,
-        input: Any,
-        stream: bool = False,
-        response_format: Mapping[str, Any] | None = None,
-        tools: list[Mapping[str, Any]] | None = None,
-        temperature: float | None = None,
-        max_output_tokens: int | None = None,
-    ) -> dict[str, Any]:
+    def build_request(self, *, model: str, input: Any, stream: bool = False,
+                      response_format: Mapping[str, Any] | None = None,
+                      tools: list[Mapping[str, Any]] | None = None,
+                      temperature: float | None = None,
+                      max_output_tokens: int | None = None) -> dict[str, Any]:
         """Build a Responses-style request payload without performing I/O."""
         if not model:
             raise ValueError("model is required")
@@ -217,10 +228,8 @@ class OpenAICompatibleProvider:
         retries = self.max_retries if retries is None else self._validate_retries(retries)
         raw = None if payload is None else json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(
-            f"{self.config.base_url}/{path.lstrip('/')}",
-            data=raw,
-            headers=self._headers(),
-            method="POST" if raw else "GET",
+            f"{self.config.base_url}/{path.lstrip('/')}", data=raw,
+            headers=self._headers(), method="POST" if raw else "GET",
         )
         for attempt in range(retries + 1):
             try:
@@ -234,7 +243,7 @@ class OpenAICompatibleProvider:
                     return result
             except urllib.error.HTTPError as exc:
                 if exc.code in {408, 429, 500, 502, 503, 504} and attempt < retries:
-                    self._retry_delay(attempt)
+                    self._retry_delay(attempt, retry_after_seconds=self._retry_after_seconds(exc))
                     continue
                 raise RuntimeError(f"LLM HTTP {exc.code}") from exc
             except (urllib.error.URLError, TimeoutError, socket.timeout) as exc:
@@ -255,10 +264,8 @@ class OpenAICompatibleProvider:
         retries = self.max_retries if retries is None else self._validate_retries(retries)
         raw = json.dumps({**payload, "stream": True}).encode("utf-8")
         req = urllib.request.Request(
-            f"{self.config.base_url}/{path.lstrip('/')}",
-            data=raw,
-            headers=self._headers(stream=True),
-            method="POST",
+            f"{self.config.base_url}/{path.lstrip('/')}", data=raw,
+            headers=self._headers(stream=True), method="POST",
         )
         for attempt in range(retries + 1):
             emitted = False
@@ -284,7 +291,7 @@ class OpenAICompatibleProvider:
                     return
             except urllib.error.HTTPError as exc:
                 if not emitted and exc.code in {408, 429, 500, 502, 503, 504} and attempt < retries:
-                    self._retry_delay(attempt)
+                    self._retry_delay(attempt, retry_after_seconds=self._retry_after_seconds(exc))
                     continue
                 raise RuntimeError(f"LLM HTTP {exc.code}") from exc
             except (urllib.error.URLError, TimeoutError, socket.timeout) as exc:
@@ -308,10 +315,7 @@ class OpenAICompatibleProvider:
             self._require("structured_output")
         if tools is not None:
             self._require("tool_calling")
-        payload: dict[str, Any] = {
-            "model": model,
-            "messages": [dict(m) for m in messages],
-        }
+        payload: dict[str, Any] = {"model": model, "messages": [dict(m) for m in messages]}
         if temperature is not None:
             payload["temperature"] = temperature
         if max_tokens is not None:
