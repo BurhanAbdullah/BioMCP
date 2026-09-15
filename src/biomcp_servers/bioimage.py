@@ -7,6 +7,8 @@ from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 
+from biomcp.http import create_streamable_http_app
+
 
 def _require_path(path: str) -> Path:
     p = Path(path).expanduser().resolve()
@@ -36,9 +38,6 @@ def _load_image(path: Path):
     if max_decoded_bytes <= 0:
         raise ValueError("BIOMCP_MAX_DECODED_BYTES must be positive")
 
-    # Inspect TIFF metadata before decompression so a highly compressed file
-    # cannot expand into an unexpectedly large in-memory array. Both element
-    # count and decoded byte size are bounded because dtype width varies.
     with tifffile.TiffFile(path) as tif:
         series = tif.series[0]
         shape = series.shape
@@ -122,6 +121,11 @@ def create_server() -> MCPServer:
             "shape": list(mask.shape),
         }
     return mcp
+
+
+def create_http_app() -> Any:
+    """Create the hardened Streamable HTTP app for this server."""
+    return create_streamable_http_app(create_server())
 
 
 def main() -> None:
