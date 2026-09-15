@@ -1,3 +1,5 @@
+import urllib.error
+
 import pytest
 
 from biomcp.llm import OpenAICompatibleProvider, ProviderConfig, ProviderCapabilities, builtin_providers
@@ -287,3 +289,60 @@ def test_invalid_retry_backoff_configuration_is_rejected(monkeypatch):
     monkeypatch.setenv("BIOMCP_LLM_RETRY_BACKOFF_SECONDS", "30.1")
     with pytest.raises(ValueError, match="retry_backoff_seconds must be 0..30"):
         OpenAICompatibleProvider.from_environment()
+
+
+def _http_error(code: int, retry_after: str | None = None) -> urllib.error.HTTPError:
+    headers = {} if retry_after is None else {"Retry-After": retry_after}
+    return urllib.error.HTTPError(
+        "http://127.0.0.1:9000/v1/models", code, "retry", headers, None
+    )
+
+
+def test_retry_after_hint_is_honored_and_bounded(monkeypatch):
+    provider = OpenAICompatibleProvider(ProviderConfig("test", "http://127.0.0.1:9000/v1"))
+    assert provider._retry_after_seconds(_http_error(429, "7")) == 7.0
+    assert provider._retry_after_seconds(_http_error(429, "999")) == 30.0
+    assert provider._retry_after_seconds(_http_error(429, "invalid")) is None
+    assert provider._retry_after_seconds(_http_error(429, "-1")) is None
+    delays = []
+    monkeypatch.setattr("biomcp.llm.time.sleep", delays.append)
+    provider._retry_delay(0, retry_after_seconds=7.0)
+    assert delays == [7.0]
+
+
+def test_retry_after_is_used_by_http_retry(monkeypatch):
+    provider = OpenAICompatibleProvider(
+        ProviderConfig("test", "http://127.0.0.1:9000/v1"), max_retries=1
+    )
+    errors = [_http_error(429, "3")]
+    calls = []
+
+    class Opener:
+        def open(self, request, timeout):
+            calls.append(1)
+            if len(calls) == 1:
+                raise errors[0]
+            return _FakeJsonResponse(b'{"id":"ok"}')
+
+    class _Sleep:
+        def __call__(self, seconds):
+            calls.append(("sleep", seconds))
+
+    provider._opener = Opener()
+    monkeypatch.setattr("biomcp.llm.time.sleep", _Sleep())
+    assert provider.request("models") == {"id": "ok"}
+    assert calls == [1, ("sleep", 3.0), 1]
+
+
+class _FakeJsonResponse:
+    def __init__(self, body: bytes):
+        self.body = body
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def read(self, limit):
+        return self.body
