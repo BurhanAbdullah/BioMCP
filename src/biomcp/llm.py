@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import socket
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -66,7 +67,7 @@ class OpenAICompatibleProvider:
 
     def __init__(self, config: ProviderConfig, *, api_key: str | None = None,
                  timeout_seconds: int = 120, max_response_bytes: int = 8 * 1024 * 1024,
-                 max_retries: int = 1) -> None:
+                 max_retries: int = 1, retry_backoff_seconds: float = 0.0) -> None:
         parsed = urllib.parse.urlsplit(config.base_url.rstrip("/"))
         if parsed.scheme not in {"http", "https"} or not parsed.netloc or parsed.username or parsed.password:
             raise ValueError("provider base_url must be an HTTP(S) URL without embedded credentials")
@@ -76,10 +77,13 @@ class OpenAICompatibleProvider:
             raise ValueError("max_response_bytes must be 1..67108864")
         if not 0 <= max_retries <= 3:
             raise ValueError("max_retries must be 0..3")
+        if not 0 <= retry_backoff_seconds <= 30:
+            raise ValueError("retry_backoff_seconds must be 0..30")
         self.config = config
         self.timeout_seconds = timeout_seconds
         self.max_response_bytes = max_response_bytes
         self.max_retries = max_retries
+        self.retry_backoff_seconds = retry_backoff_seconds
         self._api_key = api_key
         self._opener = urllib.request.build_opener(_NoRedirect())
 
@@ -96,12 +100,14 @@ class OpenAICompatibleProvider:
         timeout = int(os.getenv("BIOMCP_LLM_TIMEOUT_SECONDS", "120"))
         max_bytes = int(os.getenv("BIOMCP_LLM_MAX_RESPONSE_BYTES", str(8 * 1024 * 1024)))
         max_retries = int(os.getenv("BIOMCP_LLM_MAX_RETRIES", "1"))
+        retry_backoff = float(os.getenv("BIOMCP_LLM_RETRY_BACKOFF_SECONDS", "0"))
         return cls(
             ProviderConfig(profile.name, base_url, profile.api_key_env, profile.capabilities),
             api_key=api_key,
             timeout_seconds=timeout,
             max_response_bytes=max_bytes,
             max_retries=max_retries,
+            retry_backoff_seconds=retry_backoff,
         )
 
     @staticmethod
@@ -109,6 +115,12 @@ class OpenAICompatibleProvider:
         if not 0 <= retries <= 3:
             raise ValueError("retries must be 0..3")
         return retries
+
+    def _retry_delay(self, attempt: int) -> None:
+        """Sleep before a retry using bounded exponential backoff."""
+        if self.retry_backoff_seconds <= 0:
+            return
+        time.sleep(min(self.retry_backoff_seconds * (2 ** attempt), 30.0))
 
     def _require(self, capability: str) -> None:
         if not getattr(self.config.capabilities, capability):
@@ -222,10 +234,12 @@ class OpenAICompatibleProvider:
                     return result
             except urllib.error.HTTPError as exc:
                 if exc.code in {408, 429, 500, 502, 503, 504} and attempt < retries:
+                    self._retry_delay(attempt)
                     continue
                 raise RuntimeError(f"LLM HTTP {exc.code}") from exc
             except (urllib.error.URLError, TimeoutError, socket.timeout) as exc:
                 if attempt < retries:
+                    self._retry_delay(attempt)
                     continue
                 raise RuntimeError("LLM endpoint unavailable or request timed out") from exc
         raise RuntimeError("LLM request failed")
@@ -270,10 +284,12 @@ class OpenAICompatibleProvider:
                     return
             except urllib.error.HTTPError as exc:
                 if not emitted and exc.code in {408, 429, 500, 502, 503, 504} and attempt < retries:
+                    self._retry_delay(attempt)
                     continue
                 raise RuntimeError(f"LLM HTTP {exc.code}") from exc
             except (urllib.error.URLError, TimeoutError, socket.timeout) as exc:
                 if not emitted and attempt < retries:
+                    self._retry_delay(attempt)
                     continue
                 raise RuntimeError("LLM endpoint unavailable or request timed out") from exc
 
