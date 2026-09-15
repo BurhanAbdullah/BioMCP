@@ -9,7 +9,10 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 
 
-ASGIApp = Callable[[dict[str, Any], Callable[..., Awaitable[None]], Callable[..., Awaitable[None]]], Awaitable[None]]
+ASGIApp = Callable[
+    [dict[str, Any], Callable[..., Awaitable[Any]], Callable[..., Awaitable[None]]],
+    Awaitable[None],
+]
 
 
 def _csv_env(name: str) -> list[str]:
@@ -43,34 +46,50 @@ class ConcurrencyLimitMiddleware:
             raise ValueError("max_concurrent_requests must be a positive integer")
         self.app = app
         self.max_concurrent_requests = max_concurrent_requests
-        self._semaphore = (
-            asyncio.BoundedSemaphore(max_concurrent_requests)
-            if max_concurrent_requests is not None
-            else None
-        )
+        self._active_requests = 0
+        self._admission_lock = asyncio.Lock()
 
-    async def __call__(self, scope: dict[str, Any], receive: Callable[..., Awaitable[Any]], send: Callable[..., Awaitable[None]]) -> None:
-        if self._semaphore is None or scope.get("type") != "http":
+    async def __call__(
+        self,
+        scope: dict[str, Any],
+        receive: Callable[..., Awaitable[Any]],
+        send: Callable[..., Awaitable[None]],
+    ) -> None:
+        if self.max_concurrent_requests is None or scope.get("type") != "http":
             await self.app(scope, receive, send)
             return
 
-        if self._semaphore.locked():
-            await send({
-                "type": "http.response.start",
-                "status": 503,
-                "headers": [(b"content-type", b"text/plain; charset=utf-8"), (b"retry-after", b"1")],
-            })
-            await send({
-                "type": "http.response.body",
-                "body": b"BioMCP HTTP concurrency limit reached; retry later.",
-            })
+        async with self._admission_lock:
+            if self._active_requests >= self.max_concurrent_requests:
+                admitted = False
+            else:
+                self._active_requests += 1
+                admitted = True
+
+        if not admitted:
+            await send(
+                {
+                    "type": "http.response.start",
+                    "status": 503,
+                    "headers": [
+                        (b"content-type", b"text/plain; charset=utf-8"),
+                        (b"retry-after", b"1"),
+                    ],
+                }
+            )
+            await send(
+                {
+                    "type": "http.response.body",
+                    "body": b"BioMCP HTTP concurrency limit reached; retry later.",
+                }
+            )
             return
 
-        await self._semaphore.acquire()
         try:
             await self.app(scope, receive, send)
         finally:
-            self._semaphore.release()
+            async with self._admission_lock:
+                self._active_requests -= 1
 
 
 def transport_security_from_environment() -> TransportSecuritySettings:
