@@ -1,16 +1,76 @@
 """Production-oriented Streamable HTTP deployment helpers for BioMCP."""
 from __future__ import annotations
 
+import asyncio
 import os
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 
 
+ASGIApp = Callable[[dict[str, Any], Callable[..., Awaitable[None]], Callable[..., Awaitable[None]]], Awaitable[None]]
+
+
 def _csv_env(name: str) -> list[str]:
     value = os.getenv(name, "")
     return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _optional_positive_int_env(name: str) -> int | None:
+    value = os.getenv(name)
+    if value is None or not value.strip():
+        return None
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a positive integer") from exc
+    if parsed < 1:
+        raise ValueError(f"{name} must be a positive integer")
+    return parsed
+
+
+class ConcurrencyLimitMiddleware:
+    """Bound in-flight HTTP requests within one ASGI process.
+
+    This is local backpressure, not a distributed rate limiter. When the
+    process is saturated, requests receive a retryable 503 response rather
+    than being allowed to grow an unbounded in-process queue.
+    """
+
+    def __init__(self, app: ASGIApp, max_concurrent_requests: int | None) -> None:
+        if max_concurrent_requests is not None and max_concurrent_requests < 1:
+            raise ValueError("max_concurrent_requests must be a positive integer")
+        self.app = app
+        self.max_concurrent_requests = max_concurrent_requests
+        self._semaphore = (
+            asyncio.BoundedSemaphore(max_concurrent_requests)
+            if max_concurrent_requests is not None
+            else None
+        )
+
+    async def __call__(self, scope: dict[str, Any], receive: Callable[..., Awaitable[Any]], send: Callable[..., Awaitable[None]]) -> None:
+        if self._semaphore is None or scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+
+        if self._semaphore.locked():
+            await send({
+                "type": "http.response.start",
+                "status": 503,
+                "headers": [(b"content-type", b"text/plain; charset=utf-8"), (b"retry-after", b"1")],
+            })
+            await send({
+                "type": "http.response.body",
+                "body": b"BioMCP HTTP concurrency limit reached; retry later.",
+            })
+            return
+
+        await self._semaphore.acquire()
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            self._semaphore.release()
 
 
 def transport_security_from_environment() -> TransportSecuritySettings:
@@ -39,14 +99,15 @@ def create_streamable_http_app(
     allowed_hosts: list[str] | None = None,
     allowed_origins: list[str] | None = None,
     stateless_http: bool = True,
+    max_concurrent_requests: int | None = None,
 ) -> Any:
     """Return an ASGI app suitable for horizontally scaled MCP deployment.
 
-    The default stateless mode removes in-process legacy session affinity.
-    Modern 2026-07-28 MCP requests are stateless at the protocol layer; the
-    explicit flag also keeps legacy clients from creating per-worker sessions.
-    TLS termination, worker count, autoscaling, rate limiting, and load
-    balancing remain deployment concerns outside this library.
+    ``max_concurrent_requests`` bounds work per ASGI process. If omitted, the
+    existing unbounded application behavior is preserved. The environment
+    variable ``BIOMCP_HTTP_MAX_CONCURRENCY`` can provide the same setting.
+    This limit is intentionally process-local; distributed rate limiting is a
+    separate deployment concern.
     """
     if allowed_hosts is None:
         security = transport_security_from_environment()
@@ -58,11 +119,21 @@ def create_streamable_http_app(
             allowed_hosts=allowed_hosts,
             allowed_origins=allowed_origins or [],
         )
-    return server.streamable_http_app(
+    app = server.streamable_http_app(
         host="0.0.0.0",
         stateless_http=stateless_http,
         transport_security=security,
     )
+    limit = max_concurrent_requests
+    if limit is None:
+        limit = _optional_positive_int_env("BIOMCP_HTTP_MAX_CONCURRENCY")
+    if limit is not None:
+        app = ConcurrencyLimitMiddleware(app, limit)
+    return app
 
 
-__all__ = ["create_streamable_http_app", "transport_security_from_environment"]
+__all__ = [
+    "ConcurrencyLimitMiddleware",
+    "create_streamable_http_app",
+    "transport_security_from_environment",
+]
