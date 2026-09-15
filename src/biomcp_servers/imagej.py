@@ -8,6 +8,8 @@ from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 
+from biomcp.http import create_streamable_http_app
+
 
 def _executable() -> str | None:
     return os.getenv("BIOMCP_IMAGEJ_EXECUTABLE") or os.getenv("IMAGEJ_EXECUTABLE")
@@ -86,6 +88,11 @@ def create_server() -> MCPServer:
             raise ValueError("timeout_seconds must be 1..900")
         return _run_macro(binary, image, macro, timeout_seconds)
     return mcp
+
+
+def create_http_app() -> Any:
+    """Create the hardened Streamable HTTP app for this server."""
+    return create_streamable_http_app(create_server())
 
 
 def main() -> None:
