@@ -11,7 +11,16 @@ REGISTRY_PATH = _REPO_REGISTRY if _REPO_REGISTRY.is_file() else _PACKAGED_REGIST
 
 _ALLOWED_STATUS = {"planned", "experimental", "validated", "deprecated"}
 _ALLOWED_TRANSPORTS = {"stdio", "streamable-http", "sse"}
-_ALLOWED_CAPABILITIES = {"model_discovery", "chat", "responses", "streaming", "structured_output", "tool_calling"}
+_ALLOWED_CAPABILITIES = {
+    "model_discovery",
+    "chat",
+    "responses",
+    "streaming",
+    "structured_output",
+    "tool_calling",
+    "mcp_capability_discovery",
+    "mcp_tool_execution",
+}
 
 
 def load_registry(path: Path | None = None) -> dict[str, Any]:
@@ -75,25 +84,20 @@ def load_registry(path: Path | None = None) -> dict[str, Any]:
             raise ValueError(f"Server {name} providers must be a list of names")
 
         capabilities = entry.get("capabilities", [])
-        if not isinstance(capabilities, list) or not all(isinstance(capability, str) and capability in _ALLOWED_CAPABILITIES for capability in capabilities):
+        if not isinstance(capabilities, list) or not all(
+            isinstance(capability, str) and capability in _ALLOWED_CAPABILITIES
+            for capability in capabilities
+        ):
             raise ValueError(f"Server {name} contains unsupported capability metadata")
-
-        if installable:
-            extra = entry.get("package_extra")
-            distribution = entry.get("distribution", data.get("distribution", "biomcp"))
-            if not isinstance(extra, str) or not extra.strip():
-                raise ValueError(f"Installable server {name} requires package_extra")
-            if not isinstance(distribution, str) or not distribution.strip():
-                raise ValueError(f"Installable server {name} requires distribution")
 
     return data
 
 
 def get_server(name: str) -> dict[str, Any]:
     for entry in load_registry()["servers"]:
-        if entry.get("name") == name:
+        if entry["name"] == name:
             return entry
-    raise KeyError(f"Unknown BioMCP server: {name}")
+    raise ValueError(f"Unknown BioMCP server: {name}")
 
 
 def installable_servers() -> list[dict[str, Any]]:

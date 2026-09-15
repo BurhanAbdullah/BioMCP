@@ -67,7 +67,7 @@ def test_imagej_stdio_protocol_calls_status_tool():
 
 def test_llm_stdio_protocol_exposes_tools():
     names = asyncio.run(_list_tools("biomcp_servers.llm"))
-    assert names == ["list_models", "complete"]
+    assert names == ["list_models", "complete", "mcp_capabilities", "mcp_call_tool"]
 
 
 def test_llm_stdio_protocol_calls_tool_against_local_endpoint(monkeypatch):
