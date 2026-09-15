@@ -139,6 +139,21 @@ def test_invalid_usage_metadata_is_rejected():
         OpenAICompatibleProvider.normalize_usage({"usage": {"prompt_tokens": -1}})
 
 
+def test_stream_normalizes_final_usage_event():
+    event = {
+        "id": "chatcmpl-1",
+        "usage": {"prompt_tokens": 8, "completion_tokens": 4, "total_tokens": 12},
+    }
+    normalized = OpenAICompatibleProvider.normalize_stream_event(event)
+    assert normalized["usage"] == event["usage"]
+    assert normalized["_biomcp"]["usage"] == {
+        "input_tokens": 8,
+        "output_tokens": 4,
+        "total_tokens": 12,
+    }
+    assert "_biomcp" not in event
+
+
 class _FakeResponse:
     def __init__(self, lines):
         self._lines = [line.encode("utf-8") for line in lines]
@@ -177,6 +192,22 @@ def test_stream_parses_sse_and_enforces_protocol():
     events = list(provider.stream("responses", {"model": "m", "input": "hello"}, retries=0))
     assert events == [{"delta": "A"}, {"delta": "B"}]
     assert provider._opener.timeout == 120
+
+
+def test_stream_includes_normalized_usage_on_usage_event():
+    provider = OpenAICompatibleProvider(
+        ProviderConfig("test", "http://127.0.0.1:9000/v1", capabilities=ProviderCapabilities(streaming=True)),
+        max_response_bytes=1024,
+    )
+    provider._opener = _FakeOpener(_FakeResponse([
+        "data: {\"delta\":\"A\"}\n",
+        "data: {\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":2,\"total_tokens\":7}}\n",
+        "data: [DONE]\n",
+    ]))
+    events = list(provider.stream("chat/completions", {"model": "m", "messages": []}, retries=0))
+    assert events[0] == {"delta": "A"}
+    assert events[1]["usage"] == {"prompt_tokens": 5, "completion_tokens": 2, "total_tokens": 7}
+    assert events[1]["_biomcp"]["usage"] == {"input_tokens": 5, "output_tokens": 2, "total_tokens": 7}
 
 
 def test_response_size_limit_applies_to_streams():

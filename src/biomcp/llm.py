@@ -132,6 +132,18 @@ class OpenAICompatibleProvider:
             normalized["_biomcp"] = {"usage": usage_dict}
         return normalized
 
+    @classmethod
+    def normalize_stream_event(cls, event: Mapping[str, Any]) -> dict[str, Any]:
+        """Return an SSE event with provider-neutral usage metadata when present."""
+        if not isinstance(event, Mapping):
+            raise ValueError("LLM stream event must be an object")
+        normalized = dict(event)
+        usage = cls.normalize_usage(event)
+        usage_dict = usage.as_dict()
+        if usage_dict:
+            normalized["_biomcp"] = {"usage": usage_dict}
+        return normalized
+
     def build_request(
         self,
         *,
@@ -235,7 +247,7 @@ class OpenAICompatibleProvider:
                         item = json.loads(text)
                         if not isinstance(item, dict):
                             raise RuntimeError("LLM stream returned a non-object JSON event")
-                        yield item
+                        yield self.normalize_stream_event(item)
                     return
             except urllib.error.HTTPError as exc:
                 if exc.code in {408, 429, 500, 502, 503, 504} and attempt < retries:
