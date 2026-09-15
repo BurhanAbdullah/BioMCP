@@ -23,7 +23,14 @@ def _server_parameters(server: str) -> StdioServerParameters:
     args = entry.get("args", [])
     if not isinstance(args, list) or not all(isinstance(arg, str) for arg in args):
         raise ValueError(f"Server {server} has invalid command arguments")
-    return StdioServerParameters(command=command, args=args, env=dict(os.environ))
+    configured = entry.get("config", [])
+    if not isinstance(configured, list) or not all(isinstance(name, str) for name in configured):
+        raise ValueError(f"Server {server} has invalid environment configuration")
+    env = {"PATH": os.environ.get("PATH", "")}
+    for name in configured:
+        if name in os.environ:
+            env[name] = os.environ[name]
+    return StdioServerParameters(command=command, args=args, env=env)
 
 
 def _declared_tool(server: str, tool: str) -> None:
