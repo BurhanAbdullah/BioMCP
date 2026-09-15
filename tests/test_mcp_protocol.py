@@ -67,7 +67,26 @@ def test_imagej_stdio_protocol_calls_status_tool():
 
 def test_llm_stdio_protocol_exposes_tools():
     names = asyncio.run(_list_tools("biomcp_servers.llm"))
-    assert names == ["list_models", "complete", "mcp_capabilities", "mcp_call_tool"]
+    assert names == ["list_models", "complete", "provider_capabilities", "mcp_capabilities", "mcp_call_tool"]
+
+
+def test_llm_stdio_protocol_exposes_provider_capabilities_without_credentials(monkeypatch):
+    monkeypatch.setenv("BIOMCP_LLM_BASE_URL", "http://127.0.0.1:11434/v1")
+    monkeypatch.setenv("BIOMCP_LLM_API_KEY", "test-key")
+    result = asyncio.run(
+        _call_tool(
+            "biomcp_servers.llm",
+            "provider_capabilities",
+            {},
+            env={**os.environ, "BIOMCP_LLM_BASE_URL": "http://127.0.0.1:11434/v1", "BIOMCP_LLM_API_KEY": "test-key"},
+        )
+    )
+    assert result["provider"] == "openai-compatible"
+    assert result["base_url"] == "http://127.0.0.1:11434/v1"
+    assert result["capabilities"]["streaming"] is True
+    assert result["capabilities"]["structured_output"] is True
+    assert result["capabilities"]["tool_calling"] is True
+    assert "test-key" not in json.dumps(result)
 
 
 def test_llm_stdio_protocol_calls_tool_against_local_endpoint(monkeypatch):
