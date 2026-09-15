@@ -272,7 +272,7 @@ class OpenAICompatibleProvider:
             payload["tools"] = [dict(tool) for tool in tools]
         if stream:
             return self.stream("chat/completions", payload)
-        return self.request("chat/completions", payload)
+        return self.normalize_response(self.request("chat/completions", payload))
 
     def complete(self, *, model: str, input: Any, stream: bool = False,
                  response_format: Mapping[str, Any] | None = None,
@@ -285,7 +285,7 @@ class OpenAICompatibleProvider:
                                      temperature=temperature, max_output_tokens=max_output_tokens)
         if stream:
             return self.stream("responses", payload)
-        return self.request("responses", payload)
+        return self.normalize_response(self.request("responses", payload))
 
 
 def builtin_providers() -> dict[str, ProviderConfig]:
