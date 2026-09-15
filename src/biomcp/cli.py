@@ -20,6 +20,7 @@ from typing import Any
 from . import __version__
 from .config import show as show_config, set_value
 from .doctor import diagnose
+from .mcp_client import call_tool, discover_tools, json_arguments
 from .registry import get_server, installable_servers, load_registry
 
 
@@ -145,6 +146,19 @@ def cmd_list(_: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_tools(args: argparse.Namespace) -> int:
+    tools = discover_tools(args.server)
+    print(json.dumps(tools, indent=2, sort_keys=True))
+    return 0
+
+
+def cmd_call(args: argparse.Namespace) -> int:
+    arguments = json_arguments(args.arguments)
+    result = call_tool(args.server, args.tool, arguments)
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 1 if result.get("is_error") else 0
+
+
 def cmd_install(args: argparse.Namespace) -> int:
     if args.all:
         names = [entry["name"] for entry in installable_servers()]
@@ -209,6 +223,14 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     p = sub.add_parser("list", help="list registered servers, transports and lifecycle state")
     p.set_defaults(func=cmd_list)
+    p = sub.add_parser("tools", help="discover MCP tools exposed by a registered server")
+    p.add_argument("server")
+    p.set_defaults(func=cmd_tools)
+    p = sub.add_parser("call", help="call a registry-declared MCP tool on a registered server")
+    p.add_argument("server")
+    p.add_argument("tool")
+    p.add_argument("--arguments", default="{}", help="JSON object containing tool arguments")
+    p.set_defaults(func=cmd_call)
     p = sub.add_parser("install", help="install selected integration dependencies and configure MCP clients")
     p.add_argument("--servers", help="comma separated server ids; default is all installable servers")
     p.add_argument("--all", action="store_true", help="select every installable server")
