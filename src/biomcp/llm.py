@@ -231,7 +231,12 @@ class OpenAICompatibleProvider:
         raise RuntimeError("LLM request failed")
 
     def stream(self, path: str, payload: dict[str, Any], *, retries: int | None = None) -> Iterator[dict[str, Any]]:
-        """Yield JSON objects from an SSE response with a cumulative byte limit."""
+        """Yield JSON objects from an SSE response with a cumulative byte limit.
+
+        A stream is retried only before its first event is delivered. Retrying
+        after yielding data would reconnect to the provider and could duplicate
+        already-delivered output to the caller.
+        """
         self._require("streaming")
         retries = self.max_retries if retries is None else self._validate_retries(retries)
         raw = json.dumps({**payload, "stream": True}).encode("utf-8")
@@ -242,6 +247,7 @@ class OpenAICompatibleProvider:
             method="POST",
         )
         for attempt in range(retries + 1):
+            emitted = False
             try:
                 with self._opener.open(req, timeout=self.timeout_seconds) as response:
                     total = 0
@@ -259,14 +265,15 @@ class OpenAICompatibleProvider:
                         item = json.loads(text)
                         if not isinstance(item, dict):
                             raise RuntimeError("LLM stream returned a non-object JSON event")
+                        emitted = True
                         yield self.normalize_stream_event(item)
                     return
             except urllib.error.HTTPError as exc:
-                if exc.code in {408, 429, 500, 502, 503, 504} and attempt < retries:
+                if not emitted and exc.code in {408, 429, 500, 502, 503, 504} and attempt < retries:
                     continue
                 raise RuntimeError(f"LLM HTTP {exc.code}") from exc
             except (urllib.error.URLError, TimeoutError, socket.timeout) as exc:
-                if attempt < retries:
+                if not emitted and attempt < retries:
                     continue
                 raise RuntimeError("LLM endpoint unavailable or request timed out") from exc
 
