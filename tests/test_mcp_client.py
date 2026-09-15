@@ -37,6 +37,7 @@ def test_discover_tools_uses_live_mcp_protocol():
     assert [tool["name"] for tool in tools] == [
         "list_models",
         "complete",
+        "provider_capabilities",
         "mcp_capabilities",
         "mcp_call_tool",
     ]
