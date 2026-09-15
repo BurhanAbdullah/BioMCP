@@ -19,6 +19,16 @@ def hidden(value: str) -> dict:
 mcp.run()
 """
 
+ENV_PROBE_SERVER_CODE = """
+import os
+from mcp.server.mcpserver import MCPServer
+mcp = MCPServer('broker-env-fixture')
+@mcp.tool()
+def env_present(name: str) -> dict:
+    return {'present': name in os.environ}
+mcp.run()
+"""
+
 
 def _config(*tools: str) -> MCPBrokerConfig:
     return MCPBrokerConfig(command=(sys.executable, "-c", SERVER_CODE), allowed_executables=frozenset({os.path.realpath(sys.executable)}), allowed_tools=frozenset(tools), timeout_seconds=10, max_result_bytes=1024 * 1024)
@@ -88,3 +98,17 @@ def test_config_rejects_empty_policy():
         MCPBrokerConfig(command=(sys.executable,), allowed_executables=frozenset(), allowed_tools=frozenset({"echo"}))
     with pytest.raises(ValueError, match="allowed tool"):
         MCPBrokerConfig(command=(sys.executable,), allowed_executables=frozenset({os.path.realpath(sys.executable)}), allowed_tools=frozenset())
+
+
+def test_downstream_mcp_child_does_not_inherit_parent_environment_secrets(monkeypatch):
+    monkeypatch.setenv("BIOMCP_TEST_PARENT_SECRET", "must-not-cross-process-boundary")
+    config = MCPBrokerConfig(
+        command=(sys.executable, "-c", ENV_PROBE_SERVER_CODE),
+        allowed_executables=frozenset({os.path.realpath(sys.executable)}),
+        allowed_tools=frozenset({"env_present"}),
+        timeout_seconds=10,
+        max_result_bytes=1024 * 1024,
+    )
+    broker = MCPToolBroker(config)
+    result = broker.call_tool("env_present", {"name": "BIOMCP_TEST_PARENT_SECRET"})
+    assert json.loads(result["content"][0]["text"])["present"] is False
