@@ -85,6 +85,43 @@ def test_chat_request_is_openai_compatible(monkeypatch):
     assert seen["payload"]["tools"][0]["function"]["name"] == "inspect_image"
 
 
+def test_usage_metadata_normalizes_chat_and_responses_field_names():
+    chat = {
+        "usage": {
+            "prompt_tokens": 12,
+            "completion_tokens": 7,
+            "total_tokens": 19,
+            "prompt_tokens_details": {"cached_tokens": 4},
+        }
+    }
+    responses = {"usage": {"input_tokens": 20, "output_tokens": 9, "total_tokens": 29}}
+    assert OpenAICompatibleProvider.normalize_usage(chat).as_dict() == {
+        "input_tokens": 12,
+        "output_tokens": 7,
+        "total_tokens": 19,
+        "cached_input_tokens": 4,
+    }
+    assert OpenAICompatibleProvider.normalize_usage(responses).as_dict() == {
+        "input_tokens": 20,
+        "output_tokens": 9,
+        "total_tokens": 29,
+    }
+
+
+def test_normalized_response_preserves_provider_payload_and_adds_biomcp_metadata():
+    response = {"id": "chat-1", "usage": {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5}}
+    normalized = OpenAICompatibleProvider.normalize_response(response)
+    assert normalized["id"] == "chat-1"
+    assert normalized["usage"] == response["usage"]
+    assert normalized["_biomcp"]["usage"] == {"input_tokens": 3, "output_tokens": 2, "total_tokens": 5}
+    assert "_biomcp" not in response
+
+
+def test_invalid_usage_metadata_is_rejected():
+    with pytest.raises(ValueError, match="invalid token usage"):
+        OpenAICompatibleProvider.normalize_usage({"usage": {"prompt_tokens": -1}})
+
+
 class _FakeResponse:
     def __init__(self, lines):
         self._lines = [line.encode("utf-8") for line in lines]
