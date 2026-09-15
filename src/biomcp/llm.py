@@ -127,7 +127,9 @@ class OpenAICompatibleProvider:
             raise ValueError("LLM provider response must be an object")
         normalized = dict(response)
         usage = cls.normalize_usage(response)
-        normalized["_biomcp"] = {"usage": usage.as_dict()}
+        usage_dict = usage.as_dict()
+        if usage_dict:
+            normalized["_biomcp"] = {"usage": usage_dict}
         return normalized
 
     def build_request(
