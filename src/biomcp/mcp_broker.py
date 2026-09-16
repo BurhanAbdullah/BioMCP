@@ -9,8 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from jsonschema import Draft202012Validator, SchemaError
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
+from mcp import Client, StdioServerParameters
 
 
 @dataclass(frozen=True)
@@ -136,19 +135,17 @@ class MCPToolBroker:
         return schema
 
     async def _list_tools(self) -> list[dict[str, Any]]:
-        async with stdio_client(self._parameters()) as (read, write):
-            async with ClientSession(read, write) as session:
-                await asyncio.wait_for(session.initialize(), timeout=self.config.timeout_seconds)
-                result = await asyncio.wait_for(session.list_tools(), timeout=self.config.timeout_seconds)
-                tools = []
-                for tool in result.tools:
-                    if tool.name in self.config.allowed_tools:
-                        tools.append({
-                            "name": tool.name,
-                            "description": tool.description,
-                            "inputSchema": self._schema(tool),
-                        })
-                return tools
+        async with Client(self._parameters()) as client:
+            result = await asyncio.wait_for(client.session.list_tools(), timeout=self.config.timeout_seconds)
+            tools = []
+            for tool in result.tools:
+                if tool.name in self.config.allowed_tools:
+                    tools.append({
+                        "name": tool.name,
+                        "description": tool.description,
+                        "inputSchema": self._schema(tool),
+                    })
+            return tools
 
     async def _call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if name not in self.config.allowed_tools:
@@ -158,33 +155,31 @@ class MCPToolBroker:
 
         validation_error: Exception | None = None
         payload: dict[str, Any] | None = None
-        async with stdio_client(self._parameters()) as (read, write):
-            async with ClientSession(read, write) as session:
-                await asyncio.wait_for(session.initialize(), timeout=self.config.timeout_seconds)
-                result = await asyncio.wait_for(session.list_tools(), timeout=self.config.timeout_seconds)
-                advertised = next((tool for tool in result.tools if tool.name == name), None)
-                if advertised is None:
-                    validation_error = RuntimeError("MCP tool is not advertised by the downstream server")
+        async with Client(self._parameters()) as client:
+            result = await asyncio.wait_for(client.session.list_tools(), timeout=self.config.timeout_seconds)
+            advertised = next((tool for tool in result.tools if tool.name == name), None)
+            if advertised is None:
+                validation_error = RuntimeError("MCP tool is not advertised by the downstream server")
+            else:
+                schema = self._schema(advertised)
+                validator = Draft202012Validator(schema)
+                errors = sorted(validator.iter_errors(arguments), key=lambda error: list(error.path))
+                if errors:
+                    detail = "; ".join(error.message for error in errors[:3])
+                    validation_error = ValueError(f"MCP tool arguments failed schema validation: {detail}")
                 else:
-                    schema = self._schema(advertised)
-                    validator = Draft202012Validator(schema)
-                    errors = sorted(validator.iter_errors(arguments), key=lambda error: list(error.path))
-                    if errors:
-                        detail = "; ".join(error.message for error in errors[:3])
-                        validation_error = ValueError(f"MCP tool arguments failed schema validation: {detail}")
-                    else:
-                        result = await asyncio.wait_for(session.call_tool(name, arguments), timeout=self.config.timeout_seconds)
-                        structured = _model_field(result, "structured_content", "structuredContent")
-                        structured = _json_safe(structured)
-                        content = [_json_safe(item) for item in result.content]
-                        payload = {
-                            "is_error": bool(result.is_error),
-                            "content": content,
-                            "structured_content": structured,
-                        }
-                        encoded = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
-                        if len(encoded) > self.config.max_result_bytes:
-                            validation_error = RuntimeError("MCP tool result exceeds configured result limit")
+                    result = await asyncio.wait_for(client.session.call_tool(name, arguments), timeout=self.config.timeout_seconds)
+                    structured = _model_field(result, "structured_content", "structuredContent")
+                    structured = _json_safe(structured)
+                    content = [_json_safe(item) for item in result.content]
+                    payload = {
+                        "is_error": bool(result.is_error),
+                        "content": content,
+                        "structured_content": structured,
+                    }
+                    encoded = json.dumps(payload, ensure_ascii=False, default=str).encode("utf-8")
+                    if len(encoded) > self.config.max_result_bytes:
+                        validation_error = RuntimeError("MCP tool result exceeds configured result limit")
 
         if validation_error is not None:
             raise validation_error
