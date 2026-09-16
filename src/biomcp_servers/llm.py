@@ -17,6 +17,14 @@ from biomcp.llm import OpenAICompatibleProvider
 from biomcp.mcp_broker import MCPToolBroker, broker_config_from_environment
 
 
+def _mcp_discovery_payload(broker: MCPToolBroker) -> dict[str, Any]:
+    """Return negotiated server metadata alongside the allowlisted tool catalog."""
+    return {
+        "server": broker.server_metadata(),
+        "tools": broker.list_tools(),
+    }
+
+
 def create_server() -> MCPServer:
     mcp = MCPServer("BioMCP-LLM")
     provider_name = os.getenv("BIOMCP_LLM_PROVIDER", "openai-compatible")
@@ -55,9 +63,8 @@ def create_server() -> MCPServer:
 
     @mcp.tool()
     def mcp_capabilities() -> dict[str, Any]:
-        """Discover the explicitly allowlisted downstream MCP tool surface."""
-        broker = MCPToolBroker(broker_config_from_environment())
-        return {"tools": broker.list_tools()}
+        """Discover the downstream MCP server and explicitly allowlisted tools."""
+        return _mcp_discovery_payload(MCPToolBroker(broker_config_from_environment()))
 
     @mcp.tool()
     def mcp_call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
