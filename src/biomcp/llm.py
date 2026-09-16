@@ -237,7 +237,10 @@ class OpenAICompatibleProvider:
                     body = response.read(self.max_response_bytes + 1)
                     if len(body) > self.max_response_bytes:
                         raise RuntimeError("LLM response exceeds configured response limit")
-                    result = json.loads(body.decode("utf-8"))
+                    try:
+                        result = json.loads(body.decode("utf-8"))
+                    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                        raise RuntimeError("LLM provider returned invalid JSON") from exc
                     if not isinstance(result, dict):
                         raise RuntimeError("LLM provider returned a non-object JSON response")
                     return result
@@ -283,7 +286,10 @@ class OpenAICompatibleProvider:
                             text = text[5:].strip()
                         if text == "[DONE]":
                             return
-                        item = json.loads(text)
+                        try:
+                            item = json.loads(text)
+                        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+                            raise RuntimeError("LLM stream returned invalid JSON") from exc
                         if not isinstance(item, dict):
                             raise RuntimeError("LLM stream returned a non-object JSON event")
                         emitted = True
