@@ -55,9 +55,12 @@ def create_server() -> MCPServer:
 
     @mcp.tool()
     def mcp_capabilities() -> dict[str, Any]:
-        """Discover the explicitly allowlisted downstream MCP tool surface."""
+        """Discover the downstream MCP server and explicitly allowlisted tools."""
         broker = MCPToolBroker(broker_config_from_environment())
-        return {"tools": broker.list_tools()}
+        return {
+            "server": broker.server_metadata(),
+            "tools": broker.list_tools(),
+        }
 
     @mcp.tool()
     def mcp_call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
