@@ -346,3 +346,30 @@ class _FakeJsonResponse:
 
     def read(self, limit):
         return self.body
+
+
+def test_request_sanitizes_invalid_json(monkeypatch):
+    provider = OpenAICompatibleProvider(ProviderConfig("test", "http://127.0.0.1:9000/v1"), max_retries=0)
+    provider._opener = _FakeJsonResponseOpener(b"not-json")
+    with pytest.raises(RuntimeError, match="invalid JSON") as exc:
+        provider.request("responses", {"model": "m", "input": "x"}, retries=0)
+    assert "not-json" not in str(exc.value)
+
+
+def test_stream_sanitizes_invalid_json_event():
+    provider = OpenAICompatibleProvider(
+        ProviderConfig("test", "http://127.0.0.1:9000/v1", capabilities=ProviderCapabilities(streaming=True)),
+        max_response_bytes=1024,
+    )
+    provider._opener = _FakeOpener(_FakeResponse(["data: not-json-secret\n"]))
+    with pytest.raises(RuntimeError, match="invalid JSON") as exc:
+        list(provider.stream("responses", {"model": "m", "input": "x"}, retries=0))
+    assert "not-json-secret" not in str(exc.value)
+
+
+class _FakeJsonResponseOpener:
+    def __init__(self, body: bytes):
+        self.body = body
+
+    def open(self, request, timeout):
+        return _FakeJsonResponse(self.body)
