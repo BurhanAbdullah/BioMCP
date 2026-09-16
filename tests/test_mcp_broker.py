@@ -46,6 +46,15 @@ def test_real_mcp_client_session_discovers_and_calls_allowlisted_tool():
     assert json.loads(result["content"][0]["text"])["value"] == "scientific"
 
 
+def test_real_mcp_client_exposes_negotiated_server_metadata():
+    broker = MCPToolBroker(_config("echo"))
+    metadata = broker.server_metadata()
+    assert metadata["protocol_version"]
+    assert metadata["server_info"]["name"] == "broker-fixture"
+    assert isinstance(metadata["capabilities"], dict)
+    assert metadata["instructions"] is None
+
+
 def test_live_schema_rejects_invalid_arguments():
     broker = MCPToolBroker(_config("echo"))
     with pytest.raises(ValueError, match="schema validation"):

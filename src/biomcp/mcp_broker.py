@@ -134,6 +134,15 @@ class MCPToolBroker:
             raise RuntimeError("MCP server returned an invalid input schema") from exc
         return schema
 
+    async def _server_metadata(self) -> dict[str, Any]:
+        async with Client(self._parameters()) as client:
+            return {
+                "protocol_version": client.protocol_version,
+                "capabilities": _json_safe(client.server_capabilities),
+                "server_info": _json_safe(client.server_info),
+                "instructions": client.instructions,
+            }
+
     async def _list_tools(self) -> list[dict[str, Any]]:
         async with Client(self._parameters()) as client:
             result = await asyncio.wait_for(client.session.list_tools(), timeout=self.config.timeout_seconds)
@@ -185,6 +194,9 @@ class MCPToolBroker:
             raise validation_error
         assert payload is not None
         return payload
+
+    def server_metadata(self) -> dict[str, Any]:
+        return _run(self._server_metadata())
 
     def list_tools(self) -> list[dict[str, Any]]:
         return _run(self._list_tools())
