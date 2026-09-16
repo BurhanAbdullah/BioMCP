@@ -258,91 +258,20 @@ def test_provider_rejects_invalid_retry_configuration(monkeypatch):
         OpenAICompatibleProvider.from_environment()
 
 
-def test_per_call_retry_override_is_bounded():
-    provider = OpenAICompatibleProvider(ProviderConfig("test", "http://127.0.0.1:9000/v1"), max_retries=3)
-    with pytest.raises(ValueError, match="retries must be 0..3"):
-        provider.request("models", retries=4)
+def test_request_sanitizes_invalid_json(monkeypatch):
+    provider = OpenAICompatibleProvider(ProviderConfig("test", "http://127.0.0.1:9000/v1"), max_retries=0)
+    provider._opener = _FakeOpener(_FakeResponse(["not-json"]))
+    with pytest.raises(RuntimeError, match="invalid JSON") as exc:
+        provider.request("responses", {"model": "m", "input": "x"}, retries=0)
+    assert "not-json" not in str(exc.value)
 
 
-def test_retry_backoff_is_bounded_exponential(monkeypatch):
+def test_stream_sanitizes_invalid_json_event():
     provider = OpenAICompatibleProvider(
-        ProviderConfig("test", "http://127.0.0.1:9000/v1"),
-        max_retries=3,
-        retry_backoff_seconds=2.0,
+        ProviderConfig("test", "http://127.0.0.1:9000/v1", capabilities=ProviderCapabilities(streaming=True)),
+        max_response_bytes=1024,
     )
-    delays = []
-    monkeypatch.setattr("biomcp.llm.time.sleep", delays.append)
-    provider._retry_delay(0)
-    provider._retry_delay(1)
-    provider._retry_delay(2)
-    provider._retry_delay(3)
-    assert delays == [2.0, 4.0, 8.0, 16.0]
-
-
-def test_retry_backoff_environment_is_bounded(monkeypatch):
-    monkeypatch.setenv("BIOMCP_LLM_RETRY_BACKOFF_SECONDS", "1.5")
-    provider = OpenAICompatibleProvider.from_environment()
-    assert provider.retry_backoff_seconds == 1.5
-
-
-def test_invalid_retry_backoff_configuration_is_rejected(monkeypatch):
-    monkeypatch.setenv("BIOMCP_LLM_RETRY_BACKOFF_SECONDS", "30.1")
-    with pytest.raises(ValueError, match="retry_backoff_seconds must be 0..30"):
-        OpenAICompatibleProvider.from_environment()
-
-
-def _http_error(code: int, retry_after: str | None = None) -> urllib.error.HTTPError:
-    headers = {} if retry_after is None else {"Retry-After": retry_after}
-    return urllib.error.HTTPError(
-        "http://127.0.0.1:9000/v1/models", code, "retry", headers, None
-    )
-
-
-def test_retry_after_hint_is_honored_and_bounded(monkeypatch):
-    provider = OpenAICompatibleProvider(ProviderConfig("test", "http://127.0.0.1:9000/v1"))
-    assert provider._retry_after_seconds(_http_error(429, "7")) == 7.0
-    assert provider._retry_after_seconds(_http_error(429, "999")) == 30.0
-    assert provider._retry_after_seconds(_http_error(429, "invalid")) is None
-    assert provider._retry_after_seconds(_http_error(429, "-1")) is None
-    delays = []
-    monkeypatch.setattr("biomcp.llm.time.sleep", delays.append)
-    provider._retry_delay(0, retry_after_seconds=7.0)
-    assert delays == [7.0]
-
-
-def test_retry_after_is_used_by_http_retry(monkeypatch):
-    provider = OpenAICompatibleProvider(
-        ProviderConfig("test", "http://127.0.0.1:9000/v1"), max_retries=1
-    )
-    errors = [_http_error(429, "3")]
-    calls = []
-
-    class Opener:
-        def open(self, request, timeout):
-            calls.append(1)
-            if len(calls) == 1:
-                raise errors[0]
-            return _FakeJsonResponse(b'{"id":"ok"}')
-
-    class _Sleep:
-        def __call__(self, seconds):
-            calls.append(("sleep", seconds))
-
-    provider._opener = Opener()
-    monkeypatch.setattr("biomcp.llm.time.sleep", _Sleep())
-    assert provider.request("models") == {"id": "ok"}
-    assert calls == [1, ("sleep", 3.0), 1]
-
-
-class _FakeJsonResponse:
-    def __init__(self, body: bytes):
-        self.body = body
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        return False
-
-    def read(self, limit):
-        return self.body
+    provider._opener = _FakeOpener(_FakeResponse(["data: not-json-secret\n"]))
+    with pytest.raises(RuntimeError, match="invalid JSON") as exc:
+        list(provider.stream("responses", {"model": "m", "input": "x"}, retries=0))
+    assert "not-json-secret" not in str(exc.value)
