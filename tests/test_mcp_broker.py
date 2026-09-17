@@ -73,7 +73,7 @@ def test_server_metadata_is_bounded_by_broker_timeout(monkeypatch: pytest.Monkey
         child_env=broker.config.child_env,
     )
 
-    with pytest.raises(TimeoutError):
+    with pytest.raises((TimeoutError, asyncio.TimeoutError)):
         broker.server_metadata()
 
 
