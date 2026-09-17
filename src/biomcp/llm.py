@@ -349,6 +349,90 @@ class OpenAICompatibleProvider:
         return self.normalize_response(self.request("responses", payload, retries=retries))
 
 
+def chat_with_mcp_tools(
+    provider: OpenAICompatibleProvider,
+    broker: Any,
+    *,
+    model: str,
+    messages: list[Mapping[str, Any]],
+    tool_names: list[str] | None = None,
+    max_tool_rounds: int = 3,
+) -> dict[str, Any]:
+    """Run an explicit LLM → authorized MCP tool → LLM continuation loop.
+
+    The broker is the authorization boundary: only tools it advertises and
+    allowlists can execute. The model never receives permission to invoke a
+    tool directly; it only returns a tool request that this function validates
+    and routes through the broker. Execution is bounded by ``max_tool_rounds``.
+    """
+    if not 1 <= max_tool_rounds <= 8:
+        raise ValueError("max_tool_rounds must be 1..8")
+    if not messages:
+        raise ValueError("messages must not be empty")
+
+    advertised = broker.list_tools()
+    available = {tool["name"]: tool for tool in advertised}
+    selected = set(tool_names) if tool_names is not None else set(available)
+    if not selected:
+        raise ValueError("at least one MCP tool must be selected")
+    unknown = selected - set(available)
+    if unknown:
+        raise RuntimeError("requested MCP tool is not advertised or allowlisted")
+    tools = [{
+        "type": "function",
+        "function": {
+            "name": tool["name"],
+            "description": tool.get("description") or "",
+            "parameters": tool["inputSchema"],
+        },
+    } for tool in available.values() if tool["name"] in selected]
+
+    conversation = [dict(message) for message in messages]
+    executed: list[dict[str, Any]] = []
+    for _ in range(max_tool_rounds):
+        response = provider.chat(model=model, messages=conversation, tools=tools)
+        if not isinstance(response, dict):
+            raise RuntimeError("MCP tool lifecycle requires non-streaming chat responses")
+        choice = response.get("choices", [{}])[0]
+        message = choice.get("message", {}) if isinstance(choice, Mapping) else {}
+        calls = message.get("tool_calls", []) if isinstance(message, Mapping) else []
+        if not calls:
+            result = dict(response)
+            if executed:
+                metadata = dict(result.get("_biomcp", {})) if isinstance(result.get("_biomcp"), Mapping) else {}
+                metadata["mcp_tool_calls"] = executed
+                result["_biomcp"] = metadata
+            return result
+        conversation.append(dict(message))
+        for call in calls:
+            if not isinstance(call, Mapping):
+                raise RuntimeError("LLM returned an invalid tool call")
+            function = call.get("function")
+            if not isinstance(function, Mapping) or not isinstance(function.get("name"), str):
+                raise RuntimeError("LLM returned an invalid tool call")
+            name = function["name"]
+            if name not in selected:
+                raise RuntimeError("LLM requested an MCP tool that is not authorized")
+            raw_arguments = function.get("arguments", "{}")
+            try:
+                arguments = json.loads(raw_arguments) if isinstance(raw_arguments, str) else raw_arguments
+            except json.JSONDecodeError as exc:
+                raise RuntimeError("LLM returned invalid MCP tool arguments") from exc
+            if not isinstance(arguments, dict):
+                raise RuntimeError("LLM MCP tool arguments must be an object")
+            tool_result = broker.call_tool(name, arguments)
+            call_id = call.get("id")
+            if not isinstance(call_id, str) or not call_id:
+                raise RuntimeError("LLM returned a tool call without an id")
+            conversation.append({
+                "role": "tool",
+                "tool_call_id": call_id,
+                "content": json.dumps(tool_result, ensure_ascii=False, default=str),
+            })
+            executed.append({"id": call_id, "name": name})
+    raise RuntimeError("LLM MCP tool lifecycle exceeded max_tool_rounds")
+
+
 def builtin_providers() -> dict[str, ProviderConfig]:
     """Return supported provider profiles without reading credential values."""
     return {

@@ -70,6 +70,7 @@ def main() -> None:
         "list_models",
         "complete",
         "chat",
+        "chat_with_tools",
         "provider_capabilities",
         "mcp_capabilities",
         "mcp_call_tool",
