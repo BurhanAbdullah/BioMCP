@@ -50,6 +50,20 @@
     const links = document.querySelector('.navlinks');
     if (!nav || !links || nav.querySelector('.nav-toggle')) return;
 
+    const style = document.createElement('style');
+    style.textContent = `
+      .nav-toggle{display:none;min-height:38px;padding:0 13px;border:1px solid #d8cdd0;border-radius:6px;background:#fff;color:#7f1325;font:700 13px Inter,ui-sans-serif,system-ui,sans-serif;cursor:pointer}
+      @media(max-width:900px){
+        .nav{position:relative;align-items:center}
+        .nav-toggle{display:inline-flex;align-items:center;justify-content:center}
+        .navlinks{display:none;position:absolute;left:18px;right:18px;top:calc(100% + 1px);padding:10px;background:#fff;border:1px solid #ded9da;border-top:0;box-shadow:0 14px 28px rgba(52,24,29,.10);z-index:30}
+        .navlinks.is-open{display:flex;flex-direction:column;align-items:stretch}
+        .navlinks a{width:100%;padding:10px 12px}
+        .nav-github{display:block!important}
+      }
+    `;
+    document.head.appendChild(style);
+
     const toggle = document.createElement('button');
     toggle.className = 'nav-toggle';
     toggle.type = 'button';
