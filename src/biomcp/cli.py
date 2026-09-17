@@ -148,6 +148,20 @@ def _verify_installed(names: list[str]) -> int:
     return failures
 
 
+def _client_targets(clients: list[str]) -> list[tuple[str, Path]]:
+    targets: list[tuple[str, Path]] = []
+    paths = _client_paths()
+    for client in clients:
+        if client == "codex":
+            path = Path.home() / ".codex" / "config.toml"
+        else:
+            path = paths.get(client)
+        if path is None:
+            raise SystemExit(f"Unsupported client: {client}")
+        targets.append((client, path))
+    return targets
+
+
 def cmd_list(_: argparse.Namespace) -> int:
     print(f"BioMCP {__version__}\n")
     print(f"{'server':16} {'status':12} {'transport':22} description")
@@ -207,20 +221,15 @@ def cmd_install(args: argparse.Namespace) -> int:
         names = [entry["name"] for entry in installable_servers()]
     if not names:
         raise SystemExit("No installable BioMCP servers selected")
+    clients = [c.strip() for c in args.clients.split(",") if c.strip() and c.strip() != "none"]
+    targets = _client_targets(clients)
     _install_selected(names, dry_run=args.dry_run)
     if args.verify and not args.dry_run:
         failures = _verify_installed(names)
         if failures:
             return 1
     servers = _server_configs(names)
-    clients = [c.strip() for c in args.clients.split(",") if c.strip() and c.strip() != "none"]
-    for client in clients:
-        if client == "codex":
-            path = Path.home() / ".codex" / "config.toml"
-        else:
-            path = _client_paths().get(client)
-        if path is None:
-            raise SystemExit(f"Unsupported client: {client}")
+    for client, path in targets:
         if args.dry_run:
             print(json.dumps({"client": client, "path": str(path), "mcpServers": servers}, indent=2))
         elif client == "codex":
