@@ -50,6 +50,34 @@ def test_http_security_rejects_blank_allowlist_entries(monkeypatch: pytest.Monke
         transport_security_from_environment()
 
 
+def test_http_app_rejects_wildcard_direct_host_allowlist() -> None:
+    server = MCPServer("BioMCP-Test")
+
+    with pytest.raises(ValueError, match="wildcard"):
+        create_streamable_http_app(server, allowed_hosts=["*"])
+
+
+def test_http_app_rejects_wildcard_direct_origin_allowlist() -> None:
+    server = MCPServer("BioMCP-Test")
+
+    with pytest.raises(ValueError, match="wildcard"):
+        create_streamable_http_app(
+            server,
+            allowed_hosts=["mcp.example.org"],
+            allowed_origins=["*"],
+        )
+
+
+def test_http_app_rejects_blank_direct_allowlist_entries() -> None:
+    server = MCPServer("BioMCP-Test")
+
+    with pytest.raises(ValueError, match="empty"):
+        create_streamable_http_app(
+            server,
+            allowed_hosts=["mcp.example.org", ""],
+        )
+
+
 def test_streamable_http_app_is_real_asgi_app() -> None:
     server = MCPServer("BioMCP-Test")
 
