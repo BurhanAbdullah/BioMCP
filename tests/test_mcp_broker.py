@@ -56,6 +56,34 @@ def test_real_mcp_client_exposes_negotiated_server_metadata():
     assert metadata["instructions"] is None
 
 
+def test_server_metadata_is_bounded_by_broker_result_limit():
+    broker = MCPToolBroker(_config("echo"))
+    broker.config = MCPBrokerConfig(
+        command=broker.config.command,
+        allowed_executables=broker.config.allowed_executables,
+        allowed_tools=broker.config.allowed_tools,
+        timeout_seconds=broker.config.timeout_seconds,
+        max_result_bytes=1,
+        child_env=broker.config.child_env,
+    )
+    with pytest.raises(RuntimeError, match="server metadata exceeds"):
+        broker.server_metadata()
+
+
+def test_tool_catalog_is_bounded_by_broker_result_limit():
+    broker = MCPToolBroker(_config("echo"))
+    broker.config = MCPBrokerConfig(
+        command=broker.config.command,
+        allowed_executables=broker.config.allowed_executables,
+        allowed_tools=broker.config.allowed_tools,
+        timeout_seconds=broker.config.timeout_seconds,
+        max_result_bytes=1,
+        child_env=broker.config.child_env,
+    )
+    with pytest.raises(RuntimeError, match="tool catalog exceeds"):
+        broker.list_tools()
+
+
 def test_server_metadata_is_bounded_by_broker_timeout(monkeypatch: pytest.MonkeyPatch):
     broker = MCPToolBroker(_config("echo"))
 
@@ -114,18 +142,7 @@ def test_environment_rejects_invalid_limits(monkeypatch):
         broker_config_from_environment()
 
 
-@pytest.mark.parametrize(
-    "key",
-    [
-        "PATH",
-        "PYTHONPATH",
-        "PYTHONHOME",
-        "LD_PRELOAD",
-        "LD_LIBRARY_PATH",
-        "DYLD_INSERT_LIBRARIES",
-        "DYLD_LIBRARY_PATH",
-    ],
-)
+@pytest.mark.parametrize("key", ["PATH", "PYTHONPATH", "PYTHONHOME", "LD_PRELOAD", "LD_LIBRARY_PATH", "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH"])
 def test_config_rejects_child_environment_security_overrides(key):
     with pytest.raises(ValueError, match=f"cannot override {key}"):
         MCPBrokerConfig(command=(sys.executable,), allowed_executables=frozenset({os.path.realpath(sys.executable)}), allowed_tools=frozenset({"echo"}), child_env=((key, "/unsafe"),))
@@ -145,13 +162,7 @@ def test_config_rejects_empty_policy():
 
 def test_downstream_mcp_child_does_not_inherit_parent_environment_secrets(monkeypatch):
     monkeypatch.setenv("BIOMCP_TEST_PARENT_SECRET", "must-not-cross-process-boundary")
-    config = MCPBrokerConfig(
-        command=(sys.executable, "-c", ENV_PROBE_SERVER_CODE),
-        allowed_executables=frozenset({os.path.realpath(sys.executable)}),
-        allowed_tools=frozenset({"env_present"}),
-        timeout_seconds=10,
-        max_result_bytes=1024 * 1024,
-    )
+    config = MCPBrokerConfig(command=(sys.executable, "-c", ENV_PROBE_SERVER_CODE), allowed_executables=frozenset({os.path.realpath(sys.executable)}), allowed_tools=frozenset({"env_present"}), timeout_seconds=10, max_result_bytes=1024 * 1024)
     broker = MCPToolBroker(config)
     result = broker.call_tool("env_present", {"name": "BIOMCP_TEST_PARENT_SECRET"})
     assert json.loads(result["content"][0]["text"])["present"] is False
