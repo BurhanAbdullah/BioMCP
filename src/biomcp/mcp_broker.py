@@ -12,6 +12,19 @@ from jsonschema import Draft202012Validator, SchemaError
 from mcp import Client, StdioServerParameters
 
 
+_BLOCKED_CHILD_ENV_KEYS = frozenset(
+    {
+        "PATH",
+        "PYTHONPATH",
+        "PYTHONHOME",
+        "LD_PRELOAD",
+        "LD_LIBRARY_PATH",
+        "DYLD_INSERT_LIBRARIES",
+        "DYLD_LIBRARY_PATH",
+    }
+)
+
+
 @dataclass(frozen=True)
 class MCPBrokerConfig:
     command: tuple[str, ...]
@@ -35,7 +48,7 @@ class MCPBrokerConfig:
         for key, value in self.child_env:
             if not isinstance(key, str) or not isinstance(value, str) or not key:
                 raise ValueError("MCP broker child_env must contain string key/value pairs")
-            if key in {"PATH", "PYTHONPATH", "PYTHONHOME"}:
+            if key in _BLOCKED_CHILD_ENV_KEYS:
                 raise ValueError(f"MCP broker child_env cannot override {key}")
 
 
