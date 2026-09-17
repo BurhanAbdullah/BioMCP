@@ -121,6 +121,14 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
+def _bounded_json(value: Any, limit: int, label: str) -> Any:
+    """Validate that a discovery payload stays within the broker result budget."""
+    encoded = json.dumps(value, ensure_ascii=False, default=str).encode("utf-8")
+    if len(encoded) > limit:
+        raise RuntimeError(f"MCP {label} exceeds configured result limit")
+    return value
+
+
 def _redact_child_secrets(value: Any, secrets: frozenset[str]) -> Any:
     """Recursively remove configured child-environment secret values from results."""
     if not secrets:
@@ -168,12 +176,13 @@ class MCPToolBroker:
 
     async def _server_metadata(self) -> dict[str, Any]:
         async with Client(self._parameters()) as client:
-            return {
+            payload = {
                 "protocol_version": client.protocol_version,
                 "capabilities": _json_safe(client.server_capabilities),
                 "server_info": _json_safe(client.server_info),
                 "instructions": client.instructions,
             }
+            return _bounded_json(payload, self.config.max_result_bytes, "server metadata")
 
     async def _list_tools(self) -> list[dict[str, Any]]:
         async with Client(self._parameters()) as client:
@@ -186,7 +195,7 @@ class MCPToolBroker:
                         "description": tool.description,
                         "inputSchema": self._schema(tool),
                     })
-            return tools
+            return _bounded_json(tools, self.config.max_result_bytes, "tool catalog")
 
     async def _call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if name not in self.config.allowed_tools:
