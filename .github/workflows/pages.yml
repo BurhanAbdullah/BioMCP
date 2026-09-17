@@ -1,4 +1,4 @@
-name: Validate BioMCP website docs
+name: Deploy BioMCP website
 
 on:
   push:
@@ -16,26 +16,99 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate website entrypoint
-        run: test -s docs/index.html
-
-      - name: Validate linked local pages
+      - name: Validate website files and local links
         run: |
           python - <<'PY'
+          from html.parser import HTMLParser
           from pathlib import Path
           import re
 
           root = Path("docs")
-          html = (root / "index.html").read_text(encoding="utf-8")
-          links = re.findall(r'href=[\"\']([^\"\']+)[\"\']', html)
-          local = [link.split("#", 1)[0].split("?", 1)[0] for link in links]
-          missing = [link for link in local if link and not link.startswith(("http://", "https://", "mailto:", "javascript:")) and not (root / link).exists()]
-          if missing:
-              raise SystemExit("Missing local website targets: " + ", ".join(sorted(set(missing))))
+          pages = sorted(root.glob("*.html"))
+          required = {"index.html", "install.html", "servers.html", "clients.html", "architecture.html", "examples.html", "contributing.html"}
+          names = {p.name for p in pages}
+          missing_pages = sorted(required - names)
+          if missing_pages:
+              raise SystemExit("Missing required pages: " + ", ".join(missing_pages))
+
+          class LinkParser(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.targets = []
+              def handle_starttag(self, tag, attrs):
+                  for key, value in attrs:
+                      if key in {"href", "src"} and value:
+                          self.targets.append(value)
+
+          errors = []
+          for page in pages:
+              text = page.read_text(encoding="utf-8")
+              if not text.strip():
+                  errors.append(f"empty page: {page}")
+                  continue
+              parser = LinkParser()
+              parser.feed(text)
+              for target in parser.targets:
+                  clean = target.split("#", 1)[0].split("?", 1)[0]
+                  if not clean or re.match(r"^(https?:|mailto:|javascript:|data:)", clean):
+                      continue
+                  candidate = (page.parent / clean).resolve()
+                  try:
+                      candidate.relative_to(root.resolve())
+                  except ValueError:
+                      errors.append(f"{page}: target escapes docs: {target}")
+                      continue
+                  if not candidate.exists():
+                      errors.append(f"{page}: missing target: {target}")
+
+          if errors:
+              raise SystemExit("Website validation failed:\n" + "\n".join(errors))
+
+          css = root / "assets" / "site.css"
+          if not css.is_file() or css.stat().st_size < 1000:
+              raise SystemExit("Missing or unexpectedly small docs/assets/site.css")
+
+          print(f"validated {len(pages)} HTML pages and all local links")
           PY
+
+      - name: Validate registry consistency
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = json.loads(Path('biomcp/registry.json').read_text(encoding='utf-8'))
+          packaged = json.loads(Path('src/biomcp/registry.json').read_text(encoding='utf-8'))
+          assert root == packaged, 'website and packaged registries must match'
+          assert root['product'] == 'BioMCP'
+          print('registry consistency passed')
+          PY
+
+  deploy:
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./docs
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
