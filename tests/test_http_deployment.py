@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import httpx2
 import pytest
+from mcp import Client
+from mcp.client.streamable_http import streamable_http_client
 from mcp.server.mcpserver import MCPServer
 
 from biomcp.http import create_streamable_http_app, transport_security_from_environment
@@ -99,6 +102,39 @@ def test_streamable_http_app_is_real_asgi_app() -> None:
     assert callable(app)
     assert any(getattr(route, "path", None) == "/mcp" for route in app.routes)
     assert server.session_manager is not None
+
+
+@pytest.mark.anyio
+async def test_streamable_http_supports_modern_and_legacy_clients() -> None:
+    server = MCPServer("BioMCP-Transport-Parity")
+
+    @server.tool()
+    def ping(value: str) -> dict[str, str]:
+        return {"value": value}
+
+    app = create_streamable_http_app(
+        server,
+        allowed_hosts=["testserver"],
+        stateless_http=True,
+    )
+    url = "http://testserver/mcp"
+
+    async with app.router.lifespan_context(app):
+        transport = httpx2.ASGITransport(app=app)
+        async with httpx2.AsyncClient(transport=transport, base_url=url) as http_client:
+            async with Client(
+                streamable_http_client(url, http_client=http_client)
+            ) as modern:
+                modern_result = await modern.call_tool("ping", {"value": "modern"})
+                assert modern.protocol_version == "2026-07-28"
+                assert modern_result.structured_content == {"result": {"value": "modern"}}
+
+            async with Client(
+                streamable_http_client(url, http_client=http_client), mode="legacy"
+            ) as legacy:
+                legacy_result = await legacy.call_tool("ping", {"value": "legacy"})
+                assert legacy.protocol_version == "2025-11-25"
+                assert legacy_result.structured_content == {"result": {"value": "legacy"}}
 
 
 def test_llm_http_factory_builds_asgi_app(monkeypatch: pytest.MonkeyPatch) -> None:
