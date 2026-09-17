@@ -45,21 +45,65 @@
     });
   };
 
+  const mobileNav = () => {
+    const nav = document.querySelector('.nav');
+    const links = document.querySelector('.navlinks');
+    if (!nav || !links || nav.querySelector('.nav-toggle')) return;
+
+    const toggle = document.createElement('button');
+    toggle.className = 'nav-toggle';
+    toggle.type = 'button';
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-controls', 'site-navlinks');
+    toggle.textContent = 'Menu';
+    links.id = 'site-navlinks';
+    nav.appendChild(toggle);
+
+    const close = () => {
+      links.classList.remove('is-open');
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.textContent = 'Menu';
+    };
+
+    toggle.addEventListener('click', () => {
+      const open = links.classList.toggle('is-open');
+      toggle.setAttribute('aria-expanded', String(open));
+      toggle.textContent = open ? 'Close' : 'Menu';
+    });
+
+    links.querySelectorAll('a').forEach(link => link.addEventListener('click', close));
+    window.addEventListener('resize', () => {
+      if (window.innerWidth > 900) close();
+    });
+  };
+
   const filters = () => {
     document.querySelectorAll('[data-filter-target]').forEach(input => {
       const target = document.querySelector(input.dataset.filterTarget);
       if (!target) return;
+      const items = Array.from(target.querySelectorAll('[data-filter-item]'));
+      const empty = document.createElement('p');
+      empty.className = 'filter-empty';
+      empty.textContent = 'No matching results. Try a broader search.';
+      empty.hidden = true;
+      target.parentNode.insertBefore(empty, target.nextSibling);
+
       input.addEventListener('input', () => {
         const query = input.value.trim().toLowerCase();
-        target.querySelectorAll('[data-filter-item]').forEach(item => {
-          item.hidden = query !== '' && !item.textContent.toLowerCase().includes(query);
+        let visible = 0;
+        items.forEach(item => {
+          const match = query === '' || item.textContent.toLowerCase().includes(query);
+          item.hidden = !match;
+          if (match) visible += 1;
         });
+        empty.hidden = visible !== 0;
       });
     });
   };
 
   document.documentElement.classList.add('js');
   activeNav();
+  mobileNav();
   reveal();
   copyCommands();
   filters();
