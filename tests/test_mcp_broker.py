@@ -73,7 +73,7 @@ def test_server_metadata_is_bounded_by_broker_timeout(monkeypatch: pytest.Monkey
         child_env=broker.config.child_env,
     )
 
-    with pytest.raises(TimeoutError):
+    with pytest.raises((TimeoutError, asyncio.TimeoutError)):
         broker.server_metadata()
 
 
@@ -133,7 +133,7 @@ def test_config_rejects_child_environment_security_overrides(key):
 
 def test_config_rejects_command_not_in_allowlist():
     with pytest.raises(ValueError, match="command executable is not allowlisted"):
-        MCPToolBroker(MCPBrokerConfig(command=(sys.executable,), allowed_executables=frozenset({os.path.realpath("/bin/false")}), allowed_tools=frozenset({"echo")}))
+        MCPToolBroker(MCPBrokerConfig(command=(sys.executable,), allowed_executables=frozenset({os.path.realpath("/bin/false")}), allowed_tools=frozenset({"echo"})))
 
 
 def test_config_rejects_empty_policy():
