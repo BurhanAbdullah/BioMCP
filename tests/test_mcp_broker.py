@@ -122,7 +122,7 @@ def test_environment_rejects_invalid_limits(monkeypatch):
         "PYTHONHOME",
         "LD_PRELOAD",
         "LD_LIBRARY_PATH",
-        "DYLD_INSERT_LIBRARIES",
+        "DYND_INSERT_LIBRARIES",
         "DYLD_LIBRARY_PATH",
     ],
 )
@@ -133,7 +133,7 @@ def test_config_rejects_child_environment_security_overrides(key):
 
 def test_config_rejects_command_not_in_allowlist():
     with pytest.raises(ValueError, match="command executable is not allowlisted"):
-        MCPToolBroker(MCPBrokerConfig(command=(sys.executable,), allowed_executables=frozenset({os.path.realpath("/bin/false")}), allowed_tools=frozenset({"echo")}))
+        MCPToolBroker(MCPBrokerConfig(command=(sys.executable,), allowed_executables=frozenset({os.path.realpath("/bin/false")}), allowed_tools=frozenset({"echo"})))
 
 
 def test_config_rejects_empty_policy():
