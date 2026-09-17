@@ -45,7 +45,7 @@ def diagnose(name: str | None = None) -> list[dict[str, object]]:
                 "command_path": command_path,
                 "missing_dependencies": missing_dependencies,
                 "missing_configuration": missing_configuration,
-                "ok": bool(command_path) and not missing_dependencies,
+                "ok": bool(command_path) and not missing_dependencies and not missing_configuration,
             }
         )
     return results
