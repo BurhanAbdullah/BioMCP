@@ -127,14 +127,14 @@ async def test_streamable_http_supports_modern_and_legacy_clients() -> None:
             ) as modern:
                 modern_result = await modern.call_tool("ping", {"value": "modern"})
                 assert modern.protocol_version == "2026-07-28"
-                assert modern_result.structured_content == {"result": {"value": "modern"}}
+                assert modern_result.structured_content == {"value": "modern"}
 
             async with Client(
                 streamable_http_client(url, http_client=http_client), mode="legacy"
             ) as legacy:
                 legacy_result = await legacy.call_tool("ping", {"value": "legacy"})
                 assert legacy.protocol_version == "2025-11-25"
-                assert legacy_result.structured_content == {"result": {"value": "legacy"}}
+                assert legacy_result.structured_content == {"value": "legacy"}
 
 
 def test_llm_http_factory_builds_asgi_app(monkeypatch: pytest.MonkeyPatch) -> None:
