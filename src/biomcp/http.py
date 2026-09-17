@@ -17,7 +17,14 @@ ASGIApp = Callable[
 
 def _csv_env(name: str) -> list[str]:
     value = os.getenv(name, "")
-    return [item.strip() for item in value.split(",") if item.strip()]
+    if not value.strip():
+        return []
+    entries = [item.strip() for item in value.split(",")]
+    if any(not item for item in entries):
+        raise ValueError(f"{name} must not contain empty allowlist entries")
+    if any(item == "*" for item in entries):
+        raise ValueError(f"{name} must not contain a wildcard allowlist entry")
+    return entries
 
 
 def _optional_positive_int_env(name: str) -> int | None:
