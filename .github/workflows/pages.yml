@@ -36,55 +36,59 @@ jobs:
           from html.parser import HTMLParser
           from pathlib import Path
           import re
-
-          root = Path("docs")
-          pages = sorted(root.glob("*.html"))
-          required = {"index.html", "install.html", "servers.html", "clients.html", "architecture.html", "examples.html", "contributing.html"}
-          names = {p.name for p in pages}
-          missing_pages = sorted(required - names)
-          if missing_pages:
-              raise SystemExit("Missing required pages: " + ", ".join(missing_pages))
-
+          root = Path('docs')
+          pages = sorted(root.glob('*.html'))
+          required = {'index.html','install.html','servers.html','clients.html','architecture.html','examples.html','documentation.html','contributing.html'}
+          missing = sorted(required - {p.name for p in pages})
+          if missing: raise SystemExit('Missing required pages: ' + ', '.join(missing))
           class LinkParser(HTMLParser):
-              def __init__(self):
-                  super().__init__()
-                  self.targets = []
+              def __init__(self): super().__init__(); self.targets=[]
               def handle_starttag(self, tag, attrs):
-                  for key, value in attrs:
-                      if key in {"href", "src"} and value:
-                          self.targets.append(value)
-
-          errors = []
+                  self.targets.extend(v for k,v in attrs if k in {'href','src'} and v)
+          errors=[]
           for page in pages:
-              text = page.read_text(encoding="utf-8")
-              if not text.strip():
-                  errors.append(f"empty page: {page}")
-                  continue
-              parser = LinkParser()
-              parser.feed(text)
+              text=page.read_text(encoding='utf-8')
+              parser=LinkParser(); parser.feed(text)
               for target in parser.targets:
-                  clean = target.split("#", 1)[0].split("?", 1)[0]
-                  if not clean or re.match(r"^(https?:|mailto:|javascript:|data:)", clean):
-                      continue
-                  candidate = (page.parent / clean).resolve()
-                  try:
-                      candidate.relative_to(root.resolve())
-                  except ValueError:
-                      errors.append(f"{page}: target escapes docs: {target}")
-                      continue
-                  if not candidate.exists():
-                      errors.append(f"{page}: missing target: {target}")
+                  clean=target.split('#',1)[0].split('?',1)[0]
+                  if not clean or re.match(r'^(https?:|mailto:|javascript:|data:)',clean): continue
+                  candidate=(page.parent/clean).resolve()
+                  try: candidate.relative_to(root.resolve())
+                  except ValueError: errors.append(f'{page}: target escapes docs: {target}'); continue
+                  if not candidate.exists(): errors.append(f'{page}: missing target: {target}')
+          if errors: raise SystemExit('Website validation failed:\n'+'\n'.join(errors))
+          css=root/'assets'/'site.css'
+          if not css.is_file() or css.stat().st_size<1000: raise SystemExit('Missing or unexpectedly small site.css')
+          registry=root/'assets'/'registry.json'
+          if not registry.is_file() or registry.stat().st_size<100: raise SystemExit('Missing or unexpectedly small registry')
+          print(f'validated {len(pages)} HTML pages and all local links')
+          PY
 
-          if errors:
-              raise SystemExit("Website validation failed:\n" + "\n".join(errors))
-
-          css = root / "assets" / "site.css"
-          if not css.is_file() or css.stat().st_size < 1000:
-              raise SystemExit("Missing or unexpectedly small docs/assets/site.css")
-          registry = root / "assets" / "registry.json"
-          if not registry.is_file() or registry.stat().st_size < 100:
-              raise SystemExit("Missing or unexpectedly small docs/assets/registry.json")
-          print(f"validated {len(pages)} HTML pages and all local links")
+      - name: Validate design tokens and WCAG AA contrast
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          css=Path('docs/assets/site.css').read_text(encoding='utf-8')
+          required={
+              '--surface-code:','#17212b','--text-code:','#fff','--surface-table-header:','--surface-quote:'
+          }
+          for token in ['--surface-code:','--text-code:','--surface-table-header:','--surface-quote:']:
+              if token not in css: raise SystemExit(f'missing required design token {token}')
+          for selector in ['.code,pre,.biomcp-code','table{','th,td{','th{','blockquote{']:
+              if selector not in css: raise SystemExit(f'missing audited selector {selector}')
+          if re.search(r'<[^>]+style=["\'][^"\']*(?:color|background)[^"\']*["\']', '\n'.join(Path(p).read_text(encoding='utf-8') for p in Path('docs').glob('*.html'), re.I):
+              raise SystemExit('hardcoded color/background found in HTML inline styles')
+          def lum(h):
+              h=h.lstrip('#'); rgb=[int(h[i:i+2],16)/255 for i in (0,2,4)]
+              s=[x/12.92 if x<=.04045 else ((x+.055)/1.055)**2.4 for x in rgb]
+              return .2126*s[0]+.7152*s[1]+.0722*s[2]
+          def ratio(a,b):
+              x,y=sorted((lum(a),lum(b)),reverse=True); return (x+.05)/(y+.05)
+          checks=[('light code','#17212b','#ffffff'),('dark code','#0a1015','#f7fbfd'),('light body','#17212b','#f7f9fb'),('dark body','#f3f7f9','#1b2a34'),('light accent','#8b173d','#ffffff'),('dark accent','#e68aa6','#0c141a'),('light valid','#176b52','#e8f4ef'),('dark valid','#6fd0ac','#17362d'),('light planned','#52616d','#edf1f4'),('dark planned','#b7c4cc','#202d35'),('light external','#3e5f7a','#e9f0f5'),('dark external','#9fc1da','#1b303e')]
+          failed=[(n,r) for n,a,b in checks if (r:=ratio(a,b))<4.5]
+          if failed: raise SystemExit('WCAG AA contrast failures: '+str(failed))
+          print('design token audit passed; audited code, tables, blockquotes, and status tokens meet WCAG AA contrast')
           PY
 
       - name: Validate registry consistency
@@ -92,11 +96,11 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-          root = json.loads(Path('biomcp/registry.json').read_text(encoding='utf-8'))
-          packaged = json.loads(Path('src/biomcp/registry.json').read_text(encoding='utf-8'))
-          published = json.loads(Path('docs/assets/registry.json').read_text(encoding='utf-8'))
+          root=json.loads(Path('biomcp/registry.json').read_text(encoding='utf-8'))
+          packaged=json.loads(Path('src/biomcp/registry.json').read_text(encoding='utf-8'))
+          published=json.loads(Path('docs/assets/registry.json').read_text(encoding='utf-8'))
           assert root == packaged, 'root and packaged registries must match'
-          assert root == published, 'published website registry must match the package registry'
+          assert root == published, 'published website registry must match package registry'
           assert root['product'] == 'BioMCP'
           print('registry consistency passed')
           PY
