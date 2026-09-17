@@ -7,8 +7,7 @@ import os
 from typing import Any
 
 from jsonschema import Draft202012Validator, SchemaError
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
+from mcp import Client, StdioServerParameters
 
 from .registry import get_server
 
@@ -64,37 +63,33 @@ def _validate_tool_arguments(tool: Any, arguments: dict[str, Any]) -> None:
 
 async def _discover_tools(server: str) -> list[dict[str, Any]]:
     params = _server_parameters(server)
-    async with stdio_client(params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            result = await session.list_tools()
-            return [
-                {
-                    "name": tool.name,
-                    "description": tool.description,
-                    "input_schema": _tool_schema(tool),
-                }
-                for tool in result.tools
-            ]
+    async with Client(params) as client:
+        result = await client.list_tools()
+        return [
+            {
+                "name": tool.name,
+                "description": tool.description,
+                "input_schema": _tool_schema(tool),
+            }
+            for tool in result.tools
+        ]
 
 
 async def _call_tool(server: str, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
     _declared_tool(server, tool)
     params = _server_parameters(server)
-    async with stdio_client(params) as (read, write):
-        async with ClientSession(read, write) as session:
-            await session.initialize()
-            listed = await session.list_tools()
-            live_tool = next((item for item in listed.tools if item.name == tool), None)
-            if live_tool is None:
-                raise ValueError(f"Tool {tool!r} is not advertised by registered server {server!r}")
-            _validate_tool_arguments(live_tool, arguments)
-            result = await session.call_tool(tool, arguments)
-            response: dict[str, Any] = {"is_error": bool(result.is_error)}
-            if result.structured_content is not None:
-                response["structured_content"] = result.structured_content
-            response["content"] = [item.model_dump(mode="json") for item in result.content]
-            return response
+    async with Client(params) as client:
+        listed = await client.list_tools()
+        live_tool = next((item for item in listed.tools if item.name == tool), None)
+        if live_tool is None:
+            raise ValueError(f"Tool {tool!r} is not advertised by registered server {server!r}")
+        _validate_tool_arguments(live_tool, arguments)
+        result = await client.call_tool(tool, arguments)
+        response: dict[str, Any] = {"is_error": bool(result.is_error)}
+        if result.structured_content is not None:
+            response["structured_content"] = result.structured_content
+        response["content"] = [item.model_dump(mode="json") for item in result.content]
+        return response
 
 
 def discover_tools(server: str) -> list[dict[str, Any]]:
