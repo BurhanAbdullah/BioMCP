@@ -21,7 +21,11 @@
       button.addEventListener('click', async () => {
         const target = document.querySelector(button.dataset.copy);
         if (!target) return;
-        const text = target.innerText.trim();
+        const text = Array.from(target.querySelectorAll('.command'))
+          .map(line => line.textContent.trim())
+          .filter(Boolean)
+          .join('\n');
+        if (!text) return;
         try {
           await navigator.clipboard.writeText(text);
           const original = button.textContent;
@@ -85,16 +89,20 @@
     });
   };
 
+  const registryData = async () => {
+    const response = await fetch('assets/registry.json', { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Registry request failed: ${response.status}`);
+    const data = await response.json();
+    return Array.isArray(data.servers) ? data.servers : [];
+  };
+
   const registry = async () => {
     const grid = document.querySelector('#server-grid');
     const input = document.querySelector('[data-registry-filter]');
     const empty = document.querySelector('[data-registry-empty]');
     if (!grid || !input) return;
     try {
-      const response = await fetch('assets/registry.json', { cache: 'no-store' });
-      if (!response.ok) throw new Error(`Registry request failed: ${response.status}`);
-      const data = await response.json();
-      const servers = Array.isArray(data.servers) ? data.servers : [];
+      const servers = await registryData();
       const render = () => {
         const query = input.value.trim().toLowerCase();
         const matches = servers.filter(server => JSON.stringify(server).toLowerCase().includes(query));
@@ -106,11 +114,10 @@
           const status = server.status ? server.status.charAt(0).toUpperCase() + server.status.slice(1) : 'Unspecified';
           const scope = server.installable ? 'Installable' : server.external ? 'External' : 'Not installable';
           const tools = Array.isArray(server.tools) && server.tools.length ? server.tools.join(', ') : 'No tools listed';
-          article.innerHTML = `<span class="badge ${state}">${status} · ${scope}</span><h3 style="margin-top:14px"></h3><p class="registry-description"></p><p><span class="code-inline registry-command"></span></p><p class="kicker registry-tools"></p>`;
+          article.innerHTML = `<span class="badge ${state}">${status} / ${scope}</span><h3 style="margin-top:14px"></h3><p class="registry-description"></p><p><span class="code-inline registry-command"></span></p><p class="kicker registry-tools"></p>`;
           article.querySelector('h3').textContent = server.display_name || server.name;
           article.querySelector('.registry-description').textContent = server.description || 'No description is currently provided.';
-          const command = article.querySelector('.registry-command');
-          command.textContent = server.command || 'No command listed';
+          article.querySelector('.registry-command').textContent = server.command || 'No command listed';
           article.querySelector('.registry-tools').textContent = `Tools: ${tools}`;
           grid.appendChild(article);
         });
@@ -119,9 +126,34 @@
       };
       input.addEventListener('input', render);
       render();
-    } catch (error) {
+    } catch (_) {
       grid.innerHTML = '<p class="kicker">The registry could not be loaded. The repository registry remains the authoritative source.</p>';
       empty.hidden = true;
+    }
+  };
+
+  const homeRegistry = async () => {
+    const grid = document.querySelector('#home-server-grid');
+    if (!grid) return;
+    try {
+      const servers = await registryData();
+      const active = servers.filter(server => server.status === 'validated' || server.status === 'experimental').slice(0, 4);
+      grid.innerHTML = '';
+      active.forEach(server => {
+        const article = document.createElement('article');
+        article.className = 'card server-card reveal is-visible';
+        const state = server.status === 'validated' ? 'validated' : 'experimental';
+        const status = server.status.charAt(0).toUpperCase() + server.status.slice(1);
+        const scope = server.installable ? 'Installable' : server.external ? 'External' : 'Not installable';
+        article.innerHTML = `<span class="badge ${state}"></span><h3></h3><p></p><a class="text-link" href="servers.html">View details</a>`;
+        article.querySelector('.badge').textContent = `${status} / ${scope}`;
+        article.querySelector('h3').textContent = server.display_name || server.name;
+        article.querySelector('p').textContent = server.description || 'No description is currently provided.';
+        grid.appendChild(article);
+      });
+      reveal();
+    } catch (_) {
+      grid.innerHTML = '<p class="kicker">The current server registry is available on the Servers page.</p>';
     }
   };
 
@@ -132,4 +164,5 @@
   copyCommands();
   filters();
   registry();
+  homeRegistry();
 })();
