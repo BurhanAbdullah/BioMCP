@@ -12,7 +12,7 @@ def test_diagnose_marks_missing_configuration_as_not_ok(monkeypatch):
     monkeypatch.delenv("DEMO_API_KEY", raising=False)
     monkeypatch.setattr(doctor.shutil, "which", lambda command: "/usr/bin/demo-command")
 
-    result = doctor.diagnose("not-used")
+    result = doctor.diagnose()
 
     assert result == [{
         "name": "demo",
