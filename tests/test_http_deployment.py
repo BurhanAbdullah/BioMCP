@@ -68,13 +68,19 @@ def test_http_app_rejects_wildcard_direct_origin_allowlist() -> None:
         )
 
 
-def test_http_app_rejects_blank_direct_allowlist_entries() -> None:
+def test_http_app_rejects_blank_or_non_string_direct_allowlist_entries() -> None:
     server = MCPServer("BioMCP-Test")
 
-    with pytest.raises(ValueError, match="empty"):
+    with pytest.raises(ValueError, match="empty or non-string"):
         create_streamable_http_app(
             server,
             allowed_hosts=["mcp.example.org", ""],
+        )
+
+    with pytest.raises(ValueError, match="empty or non-string"):
+        create_streamable_http_app(
+            server,
+            allowed_hosts=["mcp.example.org", 42],  # type: ignore[list-item]
         )
 
 
