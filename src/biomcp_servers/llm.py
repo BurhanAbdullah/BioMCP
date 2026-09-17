@@ -38,11 +38,26 @@ def create_server() -> MCPServer:
 
     @mcp.tool()
     def complete(prompt: str, model: str | None = None, system: str = "You are a careful scientific assistant.", temperature: float | None = None, max_output_tokens: int | None = None, response_format: dict[str, Any] | None = None, tools: list[dict[str, Any]] | None = None) -> dict[str, Any]:
-        """Generate through the configured provider; returned tool calls are not executed automatically."""
+        """Generate through the configured Responses endpoint; returned tool calls are not executed automatically."""
         chosen = model or default_model
         if not chosen:
             raise ValueError("Provide model or set BIOMCP_LLM_MODEL")
         return provider.complete(model=chosen, input=[{"role": "system", "content": system}, {"role": "user", "content": prompt}], response_format=response_format, tools=tools, temperature=temperature, max_output_tokens=max_output_tokens)
+
+    @mcp.tool()
+    def chat(prompt: str, model: str | None = None, system: str = "You are a careful scientific assistant.", temperature: float | None = None, max_tokens: int | None = None, response_format: dict[str, Any] | None = None, tools: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+        """Generate through the OpenAI-compatible Chat Completions endpoint; returned tool calls are not executed automatically."""
+        chosen = model or default_model
+        if not chosen:
+            raise ValueError("Provide model or set BIOMCP_LLM_MODEL")
+        return provider.chat(
+            model=chosen,
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+            response_format=response_format,
+            tools=tools,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
 
     @mcp.tool()
     def provider_capabilities() -> dict[str, Any]:
