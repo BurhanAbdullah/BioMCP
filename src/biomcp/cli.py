@@ -105,6 +105,37 @@ def _write_codex(path: Path, servers: dict[str, dict[str, Any]]) -> None:
     _atomic_write_text(path, existing.rstrip() + "\n")
 
 
+def _configure_clients(targets: list[tuple[str, Path]], servers: dict[str, dict[str, Any]]) -> None:
+    """Write all client configs as one transaction, restoring prior files on failure."""
+    snapshots: dict[Path, tuple[bool, bytes, int]] = {}
+    for _, path in targets:
+        if path in snapshots:
+            continue
+        if path.exists():
+            snapshots[path] = (True, path.read_bytes(), path.stat().st_mode & 0o777)
+        else:
+            snapshots[path] = (False, b"", 0)
+    try:
+        for client, path in targets:
+            if client == "codex":
+                _write_codex(path, servers)
+            else:
+                _write_json(path, servers)
+            print(f"configured {path}")
+    except BaseException:
+        for path, (existed, content, mode) in snapshots.items():
+            try:
+                if existed:
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    _atomic_write_text(path, content.decode("utf-8"))
+                    os.chmod(path, mode)
+                elif path.exists():
+                    path.unlink()
+            except OSError:
+                pass
+        raise
+
+
 def _missing_dependencies(entry: dict[str, Any]) -> list[str]:
     missing: list[str] = []
     for module in entry.get("dependencies", []):
@@ -232,12 +263,8 @@ def cmd_install(args: argparse.Namespace) -> int:
     for client, path in targets:
         if args.dry_run:
             print(json.dumps({"client": client, "path": str(path), "mcpServers": servers}, indent=2))
-        elif client == "codex":
-            _write_codex(path, servers)
-            print(f"configured {path}")
-        else:
-            _write_json(path, servers)
-            print(f"configured {path}")
+    if not args.dry_run:
+        _configure_clients(targets, servers)
     return 0
 
 
@@ -326,4 +353,4 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(argv=None))
