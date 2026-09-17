@@ -39,6 +39,7 @@ def test_discover_tools_uses_live_mcp_protocol():
         "list_models",
         "complete",
         "chat",
+        "chat_with_tools",
         "provider_capabilities",
         "mcp_capabilities",
         "mcp_call_tool",
