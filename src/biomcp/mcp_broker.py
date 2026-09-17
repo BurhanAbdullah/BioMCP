@@ -182,7 +182,7 @@ class MCPToolBroker:
                 "server_info": _json_safe(client.server_info),
                 "instructions": client.instructions,
             }
-            return _bounded_json(payload, self.config.max_result_bytes, "server metadata")
+        return _bounded_json(payload, self.config.max_result_bytes, "server metadata")
 
     async def _list_tools(self) -> list[dict[str, Any]]:
         async with Client(self._parameters()) as client:
@@ -195,7 +195,7 @@ class MCPToolBroker:
                         "description": tool.description,
                         "inputSchema": self._schema(tool),
                     })
-            return _bounded_json(tools, self.config.max_result_bytes, "tool catalog")
+        return _bounded_json(tools, self.config.max_result_bytes, "tool catalog")
 
     async def _call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         if name not in self.config.allowed_tools:
