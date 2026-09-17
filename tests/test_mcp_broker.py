@@ -2,9 +2,11 @@ import asyncio
 import json
 import os
 import sys
+from argparse import Namespace
 
 import pytest
 
+from biomcp import cli
 from biomcp.mcp_broker import MCPBrokerConfig, MCPToolBroker, broker_config_from_environment
 
 
@@ -166,3 +168,25 @@ def test_downstream_mcp_child_does_not_inherit_parent_environment_secrets(monkey
     broker = MCPToolBroker(config)
     result = broker.call_tool("env_present", {"name": "BIOMCP_TEST_PARENT_SECRET"})
     assert json.loads(result["content"][0]["text"])["present"] is False
+
+
+def test_install_verify_blocks_client_configuration_when_readiness_fails(monkeypatch):
+    events: list[str] = []
+    monkeypatch.setattr(cli, "_install_selected", lambda names, dry_run=False: events.append("install"))
+    monkeypatch.setattr(cli, "_verify_installed", lambda names: events.append("verify") or 1)
+    monkeypatch.setattr(cli, "_server_configs", lambda names: events.append("configs") or {})
+    args = Namespace(all=False, servers="bioimage", clients="none", dry_run=False, verify=True)
+
+    assert cli.cmd_install(args) == 1
+    assert events == ["install", "verify"]
+
+
+def test_install_verify_allows_client_configuration_after_readiness_passes(monkeypatch):
+    events: list[str] = []
+    monkeypatch.setattr(cli, "_install_selected", lambda names, dry_run=False: events.append("install"))
+    monkeypatch.setattr(cli, "_verify_installed", lambda names: events.append("verify") or 0)
+    monkeypatch.setattr(cli, "_server_configs", lambda names: events.append("configs") or {})
+    args = Namespace(all=False, servers="bioimage", clients="none", dry_run=False, verify=True)
+
+    assert cli.cmd_install(args) == 0
+    assert events == ["install", "verify", "configs"]

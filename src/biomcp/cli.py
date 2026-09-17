@@ -194,6 +194,10 @@ def cmd_install(args: argparse.Namespace) -> int:
     if not names:
         raise SystemExit("No installable BioMCP servers selected")
     _install_selected(names, dry_run=args.dry_run)
+    if args.verify and not args.dry_run:
+        failures = _verify_installed(names)
+        if failures:
+            return 1
     servers = _server_configs(names)
     clients = [c.strip() for c in args.clients.split(",") if c.strip() and c.strip() != "none"]
     for client in clients:
@@ -211,10 +215,6 @@ def cmd_install(args: argparse.Namespace) -> int:
         else:
             _write_json(path, servers)
             print(f"configured {path}")
-    if args.verify and not args.dry_run:
-        failures = _verify_installed(names)
-        if failures:
-            return 1
     return 0
 
 
@@ -271,7 +271,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--all", action="store_true", help="select every installable server")
     p.add_argument("--clients", default="generic", help="generic, claude-desktop, codex, or none")
     p.add_argument("--dry-run", action="store_true", help="show dependency and configuration changes without writing")
-    p.add_argument("--verify", action="store_true", help="perform live MCP readiness checks after installation")
+    p.add_argument("--verify", action="store_true", help="perform live MCP readiness checks before client configuration")
     p.set_defaults(func=cmd_install)
     p = sub.add_parser("doctor", help="check registered server commands and declared dependencies")
     p.add_argument("--server")
