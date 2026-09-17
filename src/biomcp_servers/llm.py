@@ -26,6 +26,21 @@ def _mcp_discovery_payload(broker: MCPToolBroker) -> dict[str, Any]:
     }
 
 
+class _BoundedProvider:
+    """Delegate provider calls while revalidating accumulated tool-loop context."""
+
+    def __init__(self, provider: OpenAICompatibleProvider, limits: LLMContextLimits) -> None:
+        self._provider = provider
+        self._limits = limits
+
+    def chat(self, **kwargs: Any) -> Any:
+        messages = kwargs.get("messages")
+        if not isinstance(messages, list):
+            raise ValueError("LLM conversation messages must be a list")
+        bounded = validate_context(messages, self._limits)
+        return self._provider.chat(**{**kwargs, "messages": bounded})
+
+
 def create_server() -> MCPServer:
     mcp = MCPServer("BioMCP-LLM")
     provider_name = os.getenv("BIOMCP_LLM_PROVIDER", "openai-compatible")
@@ -76,7 +91,7 @@ def create_server() -> MCPServer:
         Only tools discovered through the broker and explicitly selected by
         ``tool_names`` are exposed to the model; every execution is revalidated
         by the downstream MCP broker. Conversation growth is bounded by the
-        configured message and serialized-context limits.
+        configured message and serialized-context limits on every provider turn.
         """
         chosen = model or default_model
         if not chosen:
@@ -86,8 +101,9 @@ def create_server() -> MCPServer:
             limits,
         )
         broker = MCPToolBroker(broker_config_from_environment())
+        bounded_provider = _BoundedProvider(provider, limits)
         return chat_with_mcp_tools(
-            provider,
+            bounded_provider,
             broker,
             model=chosen,
             messages=messages,
