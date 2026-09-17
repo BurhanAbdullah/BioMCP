@@ -45,8 +45,22 @@
     });
   };
 
+  const filters = () => {
+    document.querySelectorAll('[data-filter-target]').forEach(input => {
+      const target = document.querySelector(input.dataset.filterTarget);
+      if (!target) return;
+      input.addEventListener('input', () => {
+        const query = input.value.trim().toLowerCase();
+        target.querySelectorAll('[data-filter-item]').forEach(item => {
+          item.hidden = query !== '' && !item.textContent.toLowerCase().includes(query);
+        });
+      });
+    });
+  };
+
   document.documentElement.classList.add('js');
   activeNav();
   reveal();
   copyCommands();
+  filters();
 })();
