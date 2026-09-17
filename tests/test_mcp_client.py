@@ -5,6 +5,7 @@ from biomcp.mcp_client import _validate_tool_arguments, call_tool, discover_tool
 
 class _Tool:
     name = "sample"
+    description = None
     input_schema = {
         "type": "object",
         "properties": {"path": {"type": "string"}},
