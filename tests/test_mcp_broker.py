@@ -63,7 +63,7 @@ def test_server_metadata_is_bounded_by_broker_result_limit():
         allowed_executables=broker.config.allowed_executables,
         allowed_tools=broker.config.allowed_tools,
         timeout_seconds=broker.config.timeout_seconds,
-        max_result_bytes=64,
+        max_result_bytes=1,
         child_env=broker.config.child_env,
     )
     with pytest.raises(RuntimeError, match="server metadata exceeds"):
@@ -77,7 +77,7 @@ def test_tool_catalog_is_bounded_by_broker_result_limit():
         allowed_executables=broker.config.allowed_executables,
         allowed_tools=broker.config.allowed_tools,
         timeout_seconds=broker.config.timeout_seconds,
-        max_result_bytes=64,
+        max_result_bytes=1,
         child_env=broker.config.child_env,
     )
     with pytest.raises(RuntimeError, match="tool catalog exceeds"):
