@@ -1,3 +1,4 @@
+import json
 from argparse import Namespace
 
 from biomcp import assess, cli
@@ -117,7 +118,7 @@ def test_cmd_assess_all_uses_installable_registry_servers(monkeypatch, capsys):
 
     args = Namespace(all=True, server=None)
     assert cli.cmd_assess(args) == 1
-    assert __import__("json").loads(capsys.readouterr().out) == list(results.values())
+    assert json.loads(capsys.readouterr().out) == list(results.values())
 
 
 def test_cmd_assess_single_server_preserves_existing_output(monkeypatch, capsys):
@@ -126,4 +127,4 @@ def test_cmd_assess_single_server_preserves_existing_output(monkeypatch, capsys)
 
     args = Namespace(all=False, server="bioimage")
     assert cli.cmd_assess(args) == 0
-    assert __import__("json").loads(capsys.readouterr().out) == result
+    assert json.loads(capsys.readouterr().out) == result
