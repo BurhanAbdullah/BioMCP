@@ -104,3 +104,26 @@ def test_discover_tools_uses_sdk_v2_client(monkeypatch):
             "input_schema": _Tool.input_schema,
         }
     ]
+
+
+def test_call_verify_rejects_non_ready_server(monkeypatch):
+    import biomcp.cli as cli
+
+    monkeypatch.setattr(cli, "assess_server", lambda server: {"server": server, "status": "drift"})
+    monkeypatch.setattr(cli, "call_tool", lambda *args: pytest.fail("call_tool must not run"))
+
+    with pytest.raises(AssertionError):
+        cli.cmd_call(
+            type("Args", (), {"server": "llm", "tool": "list_models", "arguments": "{}", "verify": True})()
+        )
+
+
+def test_call_verify_allows_ready_server(monkeypatch):
+    import biomcp.cli as cli
+
+    monkeypatch.setattr(cli, "assess_server", lambda server: {"server": server, "status": "ready"})
+    monkeypatch.setattr(cli, "call_tool", lambda *args: {"is_error": False, "content": []})
+
+    assert cli.cmd_call(
+        type("Args", (), {"server": "llm", "tool": "list_models", "arguments": "{}", "verify": True})()
+    ) == 0
