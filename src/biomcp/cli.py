@@ -137,6 +137,17 @@ def _install_selected(names: list[str], *, dry_run: bool = False) -> None:
         _install_extra(entry)
 
 
+def _verify_installed(names: list[str]) -> int:
+    """Verify each installed server against prerequisites and live MCP discovery."""
+    failures = 0
+    for name in names:
+        result = assess_server(name)
+        print(json.dumps(result, indent=2, sort_keys=True))
+        if result["status"] != "ready":
+            failures += 1
+    return failures
+
+
 def cmd_list(_: argparse.Namespace) -> int:
     print(f"BioMCP {__version__}\n")
     print(f"{'server':16} {'status':12} {'transport':22} description")
@@ -200,6 +211,10 @@ def cmd_install(args: argparse.Namespace) -> int:
         else:
             _write_json(path, servers)
             print(f"configured {path}")
+    if args.verify and not args.dry_run:
+        failures = _verify_installed(names)
+        if failures:
+            return 1
     return 0
 
 
@@ -256,6 +271,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--all", action="store_true", help="select every installable server")
     p.add_argument("--clients", default="generic", help="generic, claude-desktop, codex, or none")
     p.add_argument("--dry-run", action="store_true", help="show dependency and configuration changes without writing")
+    p.add_argument("--verify", action="store_true", help="perform live MCP readiness checks after installation")
     p.set_defaults(func=cmd_install)
     p = sub.add_parser("doctor", help="check registered server commands and declared dependencies")
     p.add_argument("--server")
