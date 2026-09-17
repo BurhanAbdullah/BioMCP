@@ -1,6 +1,8 @@
 import json
 from argparse import Namespace
 
+import pytest
+
 from biomcp import assess, cli
 
 
@@ -119,6 +121,13 @@ def test_cmd_assess_all_uses_installable_registry_servers(monkeypatch, capsys):
     args = Namespace(all=True, server=None)
     assert cli.cmd_assess(args) == 1
     assert json.loads(capsys.readouterr().out) == list(results.values())
+
+
+def test_cmd_assess_all_rejects_empty_installable_fleet(monkeypatch):
+    monkeypatch.setattr(cli, "installable_servers", lambda: [])
+
+    with pytest.raises(SystemExit, match="No installable BioMCP servers available"):
+        cli.cmd_assess(Namespace(all=True, server=None))
 
 
 def test_cmd_assess_single_server_preserves_existing_output(monkeypatch, capsys):

@@ -175,6 +175,8 @@ def cmd_assess(args: argparse.Namespace) -> int:
     if not args.all and not args.server:
         raise SystemExit("assess requires a server id or --all")
     names = [entry["name"] for entry in installable_servers()] if args.all else [args.server]
+    if args.all and not names:
+        raise SystemExit("No installable BioMCP servers available for assessment")
     results = [assess_server(name) for name in names]
     if args.all:
         print(json.dumps(results, indent=2, sort_keys=True))
