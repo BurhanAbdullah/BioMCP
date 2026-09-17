@@ -172,7 +172,12 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 
 def cmd_assess(args: argparse.Namespace) -> int:
-    result = assess_server(args.server)
+    names = [entry["name"] for entry in installable_servers()] if args.all else [args.server]
+    results = [assess_server(name) for name in names]
+    if args.all:
+        print(json.dumps(results, indent=2, sort_keys=True))
+        return 0 if all(result["status"] == "ready" for result in results) else 1
+    result = results[0]
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["status"] == "ready" else 1
 
@@ -259,7 +264,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("server")
     p.set_defaults(func=cmd_validate)
     p = sub.add_parser("assess", help="make a read-only readiness decision from registry and live MCP evidence")
-    p.add_argument("server")
+    p.add_argument("server", nargs="?", help="registered server id; omit when using --all")
+    p.add_argument("--all", action="store_true", help="assess every installable server from the registry")
     p.set_defaults(func=cmd_assess)
     p = sub.add_parser("call", help="call a registry-declared MCP tool on a registered server")
     p.add_argument("server")
