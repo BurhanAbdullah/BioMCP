@@ -15,12 +15,12 @@ ASGIApp = Callable[
 ]
 
 
-def _validate_allowlist(name: str, entries: list[str], *, required: bool = False) -> list[str]:
+def _validate_allowlist(name: str, entries: list[Any], *, required: bool = False) -> list[str]:
     if required and not entries:
         raise ValueError(f"{name} must contain at least one allowed host")
-    normalized = [item.strip() for item in entries]
-    if any(not item for item in normalized):
-        raise ValueError(f"{name} must not contain empty allowlist entries")
+    normalized = [item.strip() if isinstance(item, str) else item for item in entries]
+    if any(not isinstance(item, str) or not item for item in normalized):
+        raise ValueError(f"{name} must not contain empty or non-string allowlist entries")
     if any(item == "*" for item in normalized):
         raise ValueError(f"{name} must not contain a wildcard allowlist entry")
     return normalized
