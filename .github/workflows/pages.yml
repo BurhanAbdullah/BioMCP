@@ -6,11 +6,15 @@ on:
     paths:
       - 'docs/**'
       - '.github/workflows/pages.yml'
+      - 'src/biomcp/registry.json'
+      - 'biomcp/registry.json'
   pull_request:
     branches: [main]
     paths:
       - 'docs/**'
       - '.github/workflows/pages.yml'
+      - 'src/biomcp/registry.json'
+      - 'biomcp/registry.json'
   workflow_dispatch:
 
 permissions:
@@ -77,7 +81,9 @@ jobs:
           css = root / "assets" / "site.css"
           if not css.is_file() or css.stat().st_size < 1000:
               raise SystemExit("Missing or unexpectedly small docs/assets/site.css")
-
+          registry = root / "assets" / "registry.json"
+          if not registry.is_file() or registry.stat().st_size < 100:
+              raise SystemExit("Missing or unexpectedly small docs/assets/registry.json")
           print(f"validated {len(pages)} HTML pages and all local links")
           PY
 
@@ -88,7 +94,9 @@ jobs:
           from pathlib import Path
           root = json.loads(Path('biomcp/registry.json').read_text(encoding='utf-8'))
           packaged = json.loads(Path('src/biomcp/registry.json').read_text(encoding='utf-8'))
-          assert root == packaged, 'website and packaged registries must match'
+          published = json.loads(Path('docs/assets/registry.json').read_text(encoding='utf-8'))
+          assert root == packaged, 'root and packaged registries must match'
+          assert root == published, 'published website registry must match the package registry'
           assert root['product'] == 'BioMCP'
           print('registry consistency passed')
           PY
