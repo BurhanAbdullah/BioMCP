@@ -122,7 +122,7 @@ def test_environment_rejects_invalid_limits(monkeypatch):
         "PYTHONHOME",
         "LD_PRELOAD",
         "LD_LIBRARY_PATH",
-        "DYND_INSERT_LIBRARIES",
+        "DYLD_INSERT_LIBRARIES",
         "DYLD_LIBRARY_PATH",
     ],
 )
