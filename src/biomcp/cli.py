@@ -188,6 +188,11 @@ def cmd_assess(args: argparse.Namespace) -> int:
 
 def cmd_call(args: argparse.Namespace) -> int:
     arguments = json_arguments(args.arguments)
+    if args.verify:
+        readiness = assess_server(args.server)
+        print(json.dumps(readiness, indent=2, sort_keys=True))
+        if readiness["status"] != "ready":
+            return 1
     result = call_tool(args.server, args.tool, arguments)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 1 if result.get("is_error") else 0
@@ -275,6 +280,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("server")
     p.add_argument("tool")
     p.add_argument("--arguments", default="{}", help="JSON object containing tool arguments")
+    p.add_argument("--verify", action="store_true", help="require a live ready assessment before execution")
     p.set_defaults(func=cmd_call)
     p = sub.add_parser("install", help="install selected integration dependencies and configure MCP clients")
     p.add_argument("--servers", help="comma separated server ids; default is all installable servers")
