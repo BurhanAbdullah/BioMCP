@@ -47,3 +47,17 @@ def test_install_writes_idempotent_codex_config(monkeypatch, tmp_path):
     assert second.count("[mcp_servers.biomcp_bioimage]") == 1
     assert 'command = "biomcp-bioimage"' in second
     assert "args = []" in second
+
+
+def test_install_rejects_unknown_client_before_writing(monkeypatch, tmp_path):
+    monkeypatch.setattr(cli.Path, "home", lambda: tmp_path)
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+
+    try:
+        main(["install", "--servers", "bioimage", "--clients", "generic,unknown"])
+    except SystemExit as exc:
+        assert str(exc) == "Unsupported client: unknown"
+    else:
+        raise AssertionError("unsupported client must fail before configuration")
+
+    assert not (tmp_path / ".config/biomcp/mcp.json").exists()
