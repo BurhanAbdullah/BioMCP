@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from . import __version__
+from .assess import assess_server
 from .config import show as show_config, set_value
 from .contracts import validate_server
 from .doctor import diagnose
@@ -159,6 +160,12 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return 0 if result["ok"] else 1
 
 
+def cmd_assess(args: argparse.Namespace) -> int:
+    result = assess_server(args.server)
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0 if result["status"] == "ready" else 1
+
+
 def cmd_call(args: argparse.Namespace) -> int:
     arguments = json_arguments(args.arguments)
     result = call_tool(args.server, args.tool, arguments)
@@ -236,6 +243,9 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("validate", help="compare registry-declared tools with live MCP discovery")
     p.add_argument("server")
     p.set_defaults(func=cmd_validate)
+    p = sub.add_parser("assess", help="make a read-only readiness decision from registry and live MCP evidence")
+    p.add_argument("server")
+    p.set_defaults(func=cmd_assess)
     p = sub.add_parser("call", help="call a registry-declared MCP tool on a registered server")
     p.add_argument("server")
     p.add_argument("tool")
