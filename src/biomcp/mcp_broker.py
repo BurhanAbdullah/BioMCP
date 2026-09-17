@@ -231,7 +231,7 @@ class MCPToolBroker:
         return payload
 
     def server_metadata(self) -> dict[str, Any]:
-        return _run(self._server_metadata())
+        return _run(asyncio.wait_for(self._server_metadata(), timeout=self.config.timeout_seconds))
 
     def list_tools(self) -> list[dict[str, Any]]:
         return _run(self._list_tools())
