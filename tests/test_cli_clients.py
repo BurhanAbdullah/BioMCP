@@ -70,7 +70,7 @@ def test_install_rejects_unknown_server_before_dependency_install(monkeypatch):
     try:
         main(["install", "--servers", "bioimage,unknown", "--clients", "none"])
     except SystemExit as exc:
-        assert str(exc) == "Unknown server: unknown"
+        assert str(exc) == "Unknown BioMCP server: unknown"
     else:
         raise AssertionError("unknown server must fail before dependency installation")
 
