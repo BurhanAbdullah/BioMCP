@@ -13,7 +13,7 @@ from typing import Any
 from mcp.server.mcpserver import MCPServer
 
 from biomcp.http import create_streamable_http_app
-from biomcp.llm import OpenAICompatibleProvider
+from biomcp.llm import OpenAICompatibleProvider, chat_with_mcp_tools
 from biomcp.mcp_broker import MCPToolBroker, broker_config_from_environment
 
 
@@ -57,6 +57,27 @@ def create_server() -> MCPServer:
             tools=tools,
             temperature=temperature,
             max_tokens=max_tokens,
+        )
+
+    @mcp.tool()
+    def chat_with_tools(prompt: str, model: str | None = None, system: str = "You are a careful scientific assistant.", tool_names: list[str] | None = None, max_tool_rounds: int = 3) -> dict[str, Any]:
+        """Run a bounded LLM-to-authorized-MCP-tool continuation loop.
+
+        Only tools discovered through the broker and explicitly selected by
+        ``tool_names`` are exposed to the model; every execution is revalidated
+        by the downstream MCP broker.
+        """
+        chosen = model or default_model
+        if not chosen:
+            raise ValueError("Provide model or set BIOMCP_LLM_MODEL")
+        broker = MCPToolBroker(broker_config_from_environment())
+        return chat_with_mcp_tools(
+            provider,
+            broker,
+            model=chosen,
+            messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+            tool_names=tool_names,
+            max_tool_rounds=max_tool_rounds,
         )
 
     @mcp.tool()
