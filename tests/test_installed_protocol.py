@@ -43,7 +43,11 @@ def _llm_server() -> tuple[HTTPServer, str]:
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(json.dumps({"id": "installed-resp", "output": []}).encode())
+            if self.path.endswith("/chat/completions"):
+                body = {"id": "chat-resp", "choices": [{"message": {"role": "assistant", "content": "hello"}}]}
+            else:
+                body = {"id": "installed-resp", "output": []}
+            self.wfile.write(json.dumps(body).encode())
 
         def log_message(self, format, *args):
             return
@@ -65,6 +69,7 @@ def main() -> None:
     assert asyncio.run(_tools("biomcp-llm")) == [
         "list_models",
         "complete",
+        "chat",
         "provider_capabilities",
         "mcp_capabilities",
         "mcp_call_tool",
@@ -113,6 +118,19 @@ def main() -> None:
             )
         )
         assert result == {"id": "installed-resp", "output": []}
+
+        result = asyncio.run(
+            _call(
+                "biomcp-llm",
+                "chat",
+                {"prompt": "hello", "model": "test-model"},
+                env=env,
+            )
+        )
+        assert result == {
+            "id": "chat-resp",
+            "choices": [{"message": {"role": "assistant", "content": "hello"}}],
+        }
     finally:
         server.shutdown()
         server.server_close()

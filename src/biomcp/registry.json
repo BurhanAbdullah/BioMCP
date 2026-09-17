@@ -50,7 +50,7 @@
       "providers": ["openai-compatible", "ollama", "vllm"],
       "capabilities": ["model_discovery", "chat", "responses", "streaming", "structured_output", "tool_calling", "mcp_capability_discovery", "mcp_tool_execution"],
       "description": "Provider based model runtime bridge with an explicitly allowlisted MCP downstream tool broker.",
-      "tools": ["list_models", "complete", "mcp_capabilities", "mcp_call_tool"]
+      "tools": ["list_models", "complete", "chat", "mcp_capabilities", "mcp_call_tool"]
     },
     {
       "name": "bionuclei",
