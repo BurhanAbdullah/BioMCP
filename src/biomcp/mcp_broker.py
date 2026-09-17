@@ -121,6 +121,25 @@ def _json_safe(value: Any) -> Any:
     return value
 
 
+def _redact_child_secrets(value: Any, secrets: frozenset[str]) -> Any:
+    """Recursively remove configured child-environment secret values from results."""
+    if not secrets:
+        return value
+    if isinstance(value, str):
+        redacted = value
+        for secret in secrets:
+            if len(secret) >= 8 and secret in redacted:
+                redacted = redacted.replace(secret, "[REDACTED]")
+        return redacted
+    if isinstance(value, list):
+        return [_redact_child_secrets(item, secrets) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_redact_child_secrets(item, secrets) for item in value)
+    if isinstance(value, dict):
+        return {key: _redact_child_secrets(item, secrets) for key, item in value.items()}
+    return value
+
+
 class MCPToolBroker:
     """Discover and invoke an explicitly allowlisted downstream MCP server."""
     def __init__(self, config: MCPBrokerConfig):
@@ -194,6 +213,9 @@ class MCPToolBroker:
                     structured = _model_field(result, "structured_content", "structuredContent")
                     structured = _json_safe(structured)
                     content = [_json_safe(item) for item in result.content]
+                    secrets = frozenset(value for _, value in self.config.child_env if value)
+                    structured = _redact_child_secrets(structured, secrets)
+                    content = _redact_child_secrets(content, secrets)
                     payload = {
                         "is_error": bool(result.is_error),
                         "content": content,
