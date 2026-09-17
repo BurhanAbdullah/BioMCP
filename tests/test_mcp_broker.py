@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import sys
@@ -53,6 +54,27 @@ def test_real_mcp_client_exposes_negotiated_server_metadata():
     assert metadata["server_info"]["name"] == "broker-fixture"
     assert isinstance(metadata["capabilities"], dict)
     assert metadata["instructions"] is None
+
+
+def test_server_metadata_is_bounded_by_broker_timeout(monkeypatch: pytest.MonkeyPatch):
+    broker = MCPToolBroker(_config("echo"))
+
+    async def slow_metadata():
+        await asyncio.sleep(2)
+        return {}
+
+    monkeypatch.setattr(broker, "_server_metadata", slow_metadata)
+    broker.config = MCPBrokerConfig(
+        command=broker.config.command,
+        allowed_executables=broker.config.allowed_executables,
+        allowed_tools=broker.config.allowed_tools,
+        timeout_seconds=1,
+        max_result_bytes=broker.config.max_result_bytes,
+        child_env=broker.config.child_env,
+    )
+
+    with pytest.raises(TimeoutError):
+        broker.server_metadata()
 
 
 def test_live_schema_rejects_invalid_arguments():
@@ -111,7 +133,7 @@ def test_config_rejects_child_environment_security_overrides(key):
 
 def test_config_rejects_command_not_in_allowlist():
     with pytest.raises(ValueError, match="command executable is not allowlisted"):
-        MCPToolBroker(MCPBrokerConfig(command=(sys.executable,), allowed_executables=frozenset({os.path.realpath("/bin/false")}), allowed_tools=frozenset({"echo"})))
+        MCPToolBroker(MCPBrokerConfig(command=(sys.executable,), allowed_executables=frozenset({os.path.realpath("/bin/false")}), allowed_tools=frozenset({"echo")}))
 
 
 def test_config_rejects_empty_policy():
