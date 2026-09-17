@@ -1,6 +1,9 @@
 (() => {
+  const $ = (selector, root = document) => root.querySelector(selector);
+  const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
+
   const reveal = () => {
-    const items = document.querySelectorAll('.reveal');
+    const items = $$('.reveal');
     if (!items.length || !('IntersectionObserver' in window)) {
       items.forEach(item => item.classList.add('is-visible'));
       return;
@@ -16,46 +19,18 @@
     items.forEach(item => observer.observe(item));
   };
 
-  const copyCommands = () => {
-    document.querySelectorAll('[data-copy]').forEach(button => {
-      button.addEventListener('click', async () => {
-        const target = document.querySelector(button.dataset.copy);
-        if (!target) return;
-        const text = Array.from(target.querySelectorAll('.command'))
-          .map(line => line.textContent.trim())
-          .filter(Boolean)
-          .join('\n');
-        if (!text) return;
-        try {
-          await navigator.clipboard.writeText(text);
-          const original = button.textContent;
-          button.textContent = 'Copied';
-          setTimeout(() => { button.textContent = original; }, 1200);
-        } catch (_) {
-          button.textContent = 'Select to copy';
-          setTimeout(() => { button.textContent = 'Copy'; }, 1200);
-        }
-      });
-    });
-  };
-
   const activeNav = () => {
     const page = location.pathname.split('/').pop() || 'index.html';
-    document.querySelectorAll('.navlinks a[href]').forEach(link => {
+    $$('.navlinks a[href]').forEach(link => {
       const href = link.getAttribute('href');
-      if (href && !href.startsWith('http') && href.split('#')[0] === page) {
-        link.setAttribute('aria-current', 'page');
-      }
+      if (href && !href.startsWith('http') && href.split('#')[0] === page) link.setAttribute('aria-current', 'page');
     });
   };
 
   const mobileNav = () => {
-    const nav = document.querySelector('.nav');
-    const links = document.querySelector('.navlinks');
-    if (!nav || !links || nav.querySelector('.nav-toggle')) return;
-    const style = document.createElement('style');
-    style.textContent = `.nav-toggle{display:none;min-height:38px;padding:0 13px;border:1px solid #d8cdd0;border-radius:6px;background:#fff;color:#7f1325;font:700 13px Inter,ui-sans-serif,system-ui,sans-serif;cursor:pointer}@media(max-width:900px){.nav{position:relative;align-items:center}.nav-toggle{display:inline-flex;align-items:center;justify-content:center}.navlinks{display:none;position:absolute;left:18px;right:18px;top:calc(100% + 1px);padding:10px;background:#fff;border:1px solid #ded9da;border-top:0;box-shadow:0 14px 28px rgba(52,24,29,.10);z-index:30}.navlinks.is-open{display:flex;flex-direction:column;align-items:stretch}.navlinks a{width:100%;padding:10px 12px}.nav-github{display:block!important}}`;
-    document.head.appendChild(style);
+    const nav = $('.nav');
+    const links = $('.navlinks');
+    if (!nav || !links || $('.nav-toggle', nav)) return;
     const toggle = document.createElement('button');
     toggle.className = 'nav-toggle';
     toggle.type = 'button';
@@ -65,28 +40,30 @@
     links.id = 'site-navlinks';
     nav.appendChild(toggle);
     const close = () => { links.classList.remove('is-open'); toggle.setAttribute('aria-expanded', 'false'); toggle.textContent = 'Menu'; };
-    toggle.addEventListener('click', () => { const open = links.classList.toggle('is-open'); toggle.setAttribute('aria-expanded', String(open)); toggle.textContent = open ? 'Close' : 'Menu'; });
-    links.querySelectorAll('a').forEach(link => link.addEventListener('click', close));
+    toggle.addEventListener('click', () => {
+      const open = links.classList.toggle('is-open');
+      toggle.setAttribute('aria-expanded', String(open));
+      toggle.textContent = open ? 'Close' : 'Menu';
+    });
+    $$('a', links).forEach(link => link.addEventListener('click', close));
     window.addEventListener('resize', () => { if (window.innerWidth > 900) close(); });
   };
 
-  const filters = () => {
-    document.querySelectorAll('[data-filter-target]').forEach(input => {
-      const target = document.querySelector(input.dataset.filterTarget);
+  const copyButtons = () => {
+    $$('[data-copy]').forEach(button => button.addEventListener('click', async () => {
+      const target = $(button.dataset.copy);
       if (!target) return;
-      const items = Array.from(target.querySelectorAll('[data-filter-item]'));
-      const empty = document.createElement('p');
-      empty.className = 'filter-empty';
-      empty.textContent = 'No matching results. Try a broader search.';
-      empty.hidden = true;
-      target.parentNode.insertBefore(empty, target.nextSibling);
-      input.addEventListener('input', () => {
-        const query = input.value.trim().toLowerCase();
-        let visible = 0;
-        items.forEach(item => { const match = query === '' || item.textContent.toLowerCase().includes(query); item.hidden = !match; if (match) visible += 1; });
-        empty.hidden = visible !== 0;
-      });
-    });
+      const text = target.dataset.copyText || $$('.command', target).map(node => node.textContent.trim()).filter(Boolean).join('\n') || target.textContent.trim();
+      if (!text) return;
+      const original = button.textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        button.textContent = 'Copied';
+      } catch (_) {
+        button.textContent = 'Select to copy';
+      }
+      setTimeout(() => { button.textContent = original; }, 1200);
+    }));
   };
 
   const registryData = async () => {
@@ -96,44 +73,53 @@
     return Array.isArray(data.servers) ? data.servers : [];
   };
 
+  const renderServerCards = (servers, grid, empty, input) => {
+    const query = input ? input.value.trim().toLowerCase() : '';
+    const matches = servers.filter(server => JSON.stringify(server).toLowerCase().includes(query));
+    grid.innerHTML = '';
+    matches.forEach(server => {
+      const article = document.createElement('article');
+      article.className = 'card server-card reveal is-visible';
+      const state = server.status === 'validated' ? 'validated' : server.status === 'experimental' ? 'experimental' : '';
+      const status = server.status ? server.status.charAt(0).toUpperCase() + server.status.slice(1) : 'Unspecified';
+      const scope = server.installable ? 'Installable' : server.external ? 'External' : 'Not installable';
+      const tools = Array.isArray(server.tools) && server.tools.length ? server.tools.join(', ') : 'No tools listed';
+      article.innerHTML = '<span class="badge server-status"></span><h3></h3><p class="registry-description"></p><p class="registry-command-line"><span class="code-inline registry-command"></span></p><p class="kicker registry-tools"></p>';
+      $('.server-status', article).className = `badge server-status ${state}`;
+      $('.server-status', article).textContent = `${status} / ${scope}`;
+      $('h3', article).textContent = server.display_name || server.name;
+      $('.registry-description', article).textContent = server.description || 'No description is currently provided.';
+      $('.registry-command', article).textContent = server.command || 'No command listed';
+      $('.registry-tools', article).textContent = `Tools: ${tools}`;
+      grid.appendChild(article);
+    });
+    if (empty) empty.hidden = matches.length !== 0;
+  };
+
   const registry = async () => {
-    const grid = document.querySelector('#server-grid');
-    const input = document.querySelector('[data-registry-filter]');
-    const empty = document.querySelector('[data-registry-empty]');
-    if (!grid || !input) return;
+    const grid = $('#server-grid');
+    if (!grid) return;
+    const input = $('[data-registry-filter]');
+    const empty = $('[data-registry-empty]');
     try {
       const servers = await registryData();
-      const render = () => {
-        const query = input.value.trim().toLowerCase();
-        const matches = servers.filter(server => JSON.stringify(server).toLowerCase().includes(query));
-        grid.innerHTML = '';
-        matches.forEach(server => {
-          const article = document.createElement('article');
-          article.className = 'card reveal is-visible';
-          const state = server.status === 'validated' ? 'validated' : server.status === 'experimental' ? 'experimental' : '';
-          const status = server.status ? server.status.charAt(0).toUpperCase() + server.status.slice(1) : 'Unspecified';
-          const scope = server.installable ? 'Installable' : server.external ? 'External' : 'Not installable';
-          const tools = Array.isArray(server.tools) && server.tools.length ? server.tools.join(', ') : 'No tools listed';
-          article.innerHTML = `<span class="badge ${state}">${status} / ${scope}</span><h3 style="margin-top:14px"></h3><p class="registry-description"></p><p><span class="code-inline registry-command"></span></p><p class="kicker registry-tools"></p>`;
-          article.querySelector('h3').textContent = server.display_name || server.name;
-          article.querySelector('.registry-description').textContent = server.description || 'No description is currently provided.';
-          article.querySelector('.registry-command').textContent = server.command || 'No command listed';
-          article.querySelector('.registry-tools').textContent = `Tools: ${tools}`;
-          grid.appendChild(article);
-        });
-        empty.hidden = matches.length !== 0;
-        reveal();
-      };
-      input.addEventListener('input', render);
+      const render = () => renderServerCards(servers, grid, empty, input);
+      if (input) input.addEventListener('input', render);
       render();
+      const total = $('#registry-total');
+      const validated = $('#registry-validated');
+      const experimental = $('#registry-experimental');
+      if (total) total.textContent = servers.length;
+      if (validated) validated.textContent = servers.filter(s => s.status === 'validated').length;
+      if (experimental) experimental.textContent = servers.filter(s => s.status === 'experimental').length;
     } catch (_) {
       grid.innerHTML = '<p class="kicker">The registry could not be loaded. The repository registry remains the authoritative source.</p>';
-      empty.hidden = true;
+      if (empty) empty.hidden = true;
     }
   };
 
   const homeRegistry = async () => {
-    const grid = document.querySelector('#home-server-grid');
+    const grid = $('#home-server-grid');
     if (!grid) return;
     try {
       const servers = await registryData();
@@ -143,26 +129,102 @@
         const article = document.createElement('article');
         article.className = 'card server-card reveal is-visible';
         const state = server.status === 'validated' ? 'validated' : 'experimental';
-        const status = server.status.charAt(0).toUpperCase() + server.status.slice(1);
-        const scope = server.installable ? 'Installable' : server.external ? 'External' : 'Not installable';
-        article.innerHTML = `<span class="badge ${state}"></span><h3></h3><p></p><a class="text-link" href="servers.html">View details</a>`;
-        article.querySelector('.badge').textContent = `${status} / ${scope}`;
-        article.querySelector('h3').textContent = server.display_name || server.name;
-        article.querySelector('p').textContent = server.description || 'No description is currently provided.';
+        article.innerHTML = '<span class="badge server-status"></span><h3></h3><p></p><a class="text-link" href="servers.html">View registry details</a>';
+        $('.server-status', article).className = `badge server-status ${state}`;
+        $('.server-status', article).textContent = `${server.status.charAt(0).toUpperCase() + server.status.slice(1)} / ${server.installable ? 'Installable' : 'External'}`;
+        $('h3', article).textContent = server.display_name || server.name;
+        $('p', article).textContent = server.description || 'No description is currently provided.';
         grid.appendChild(article);
       });
-      reveal();
     } catch (_) {
       grid.innerHTML = '<p class="kicker">The current server registry is available on the Servers page.</p>';
     }
   };
 
+  const installBuilder = async () => {
+    const root = $('#install-builder');
+    if (!root) return;
+    try {
+      const servers = (await registryData()).filter(s => s.installable);
+      const serverBox = $('[data-install-servers]', root);
+      const client = $('[data-install-client]', root);
+      const output = $('#install-preview');
+      const render = () => {
+        const selected = $$('input:checked', serverBox).map(input => input.value);
+        const clientName = client.value;
+        const command = `biomcp install --servers ${selected.join(',') || 'none'} --clients ${clientName}`;
+        output.textContent = command;
+        output.dataset.copyText = command;
+      };
+      serverBox.innerHTML = '';
+      servers.forEach((server, index) => {
+        const label = document.createElement('label');
+        label.className = 'choice';
+        label.innerHTML = `<input type="checkbox" value="${server.name}" ${index === 0 ? 'checked' : ''}><span><strong></strong><small></small></span>`;
+        $('strong', label).textContent = server.display_name || server.name;
+        $('small', label).textContent = server.description || '';
+        serverBox.appendChild(label);
+      });
+      serverBox.addEventListener('change', render);
+      client.addEventListener('change', render);
+      render();
+    } catch (_) {
+      const output = $('#install-preview');
+      if (output) output.textContent = 'Registry unavailable. Use biomcp list to inspect available servers.';
+    }
+  };
+
+  const clientBuilder = () => {
+    const root = $('#client-builder');
+    if (!root) return;
+    const client = $('[data-client-choice]', root);
+    const server = $('[data-client-server]', root);
+    const output = $('#client-preview');
+    const render = () => {
+      const command = server.value || 'biomcp-bioimage';
+      if (client.value === 'codex') {
+        output.textContent = `[mcp_servers.${command.replace(/[^a-z0-9_]/gi, '_')}]\ncommand = "${command}"`;
+      } else {
+        output.textContent = JSON.stringify({ mcpServers: { biomcp: { command, args: [] } } }, null, 2);
+      }
+      output.dataset.copyText = output.textContent;
+    };
+    client.addEventListener('change', render);
+    server.addEventListener('change', render);
+    render();
+  };
+
+  const examples = () => {
+    const tabs = $$('[data-example-tab]');
+    if (!tabs.length) return;
+    const panels = $$('[data-example-panel]');
+    const activate = name => {
+      tabs.forEach(tab => { const active = tab.dataset.exampleTab === name; tab.classList.toggle('is-active', active); tab.setAttribute('aria-selected', String(active)); });
+      panels.forEach(panel => { panel.hidden = panel.dataset.examplePanel !== name; });
+    };
+    tabs.forEach(tab => tab.addEventListener('click', () => activate(tab.dataset.exampleTab)));
+    activate(tabs[0].dataset.exampleTab);
+  };
+
+  const checklist = () => {
+    const root = $('#contributor-checklist');
+    if (!root) return;
+    const checks = $$('input[type="checkbox"]', root);
+    const count = $('#checklist-count');
+    const update = () => { const done = checks.filter(input => input.checked).length; if (count) count.textContent = `${done} of ${checks.length} complete`; };
+    checks.forEach(input => input.addEventListener('change', update));
+    update();
+  };
+
   document.documentElement.classList.add('js');
   activeNav();
   mobileNav();
-  reveal();
-  copyCommands();
-  filters();
+  copyButtons();
   registry();
   homeRegistry();
+  installBuilder();
+  clientBuilder();
+  examples();
+  checklist();
+  reveal();
 })();
