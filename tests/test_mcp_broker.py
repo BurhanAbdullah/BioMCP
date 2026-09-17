@@ -56,6 +56,34 @@ def test_real_mcp_client_exposes_negotiated_server_metadata():
     assert metadata["instructions"] is None
 
 
+def test_server_metadata_is_bounded_by_broker_result_limit():
+    broker = MCPToolBroker(_config("echo"))
+    broker.config = MCPBrokerConfig(
+        command=broker.config.command,
+        allowed_executables=broker.config.allowed_executables,
+        allowed_tools=broker.config.allowed_tools,
+        timeout_seconds=broker.config.timeout_seconds,
+        max_result_bytes=64,
+        child_env=broker.config.child_env,
+    )
+    with pytest.raises(RuntimeError, match="server metadata exceeds"):
+        broker.server_metadata()
+
+
+def test_tool_catalog_is_bounded_by_broker_result_limit():
+    broker = MCPToolBroker(_config("echo"))
+    broker.config = MCPBrokerConfig(
+        command=broker.config.command,
+        allowed_executables=broker.config.allowed_executables,
+        allowed_tools=broker.config.allowed_tools,
+        timeout_seconds=broker.config.timeout_seconds,
+        max_result_bytes=64,
+        child_env=broker.config.child_env,
+    )
+    with pytest.raises(RuntimeError, match="tool catalog exceeds"):
+        broker.list_tools()
+
+
 def test_server_metadata_is_bounded_by_broker_timeout(monkeypatch: pytest.MonkeyPatch):
     broker = MCPToolBroker(_config("echo"))
 
