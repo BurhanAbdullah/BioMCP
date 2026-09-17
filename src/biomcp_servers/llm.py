@@ -14,7 +14,7 @@ from mcp.server.mcpserver import MCPServer
 
 from biomcp.http import create_streamable_http_app
 from biomcp.llm import OpenAICompatibleProvider, chat_with_mcp_tools
-from biomcp.llm_limits import LLMContextLimits, limits_from_environment, validate_context
+from biomcp.llm_limits import LLMContextLimits, limits_from_environment, validate_context, validate_input
 from biomcp.mcp_broker import MCPToolBroker, broker_config_from_environment
 
 
@@ -31,6 +31,7 @@ def create_server() -> MCPServer:
     provider_name = os.getenv("BIOMCP_LLM_PROVIDER", "openai-compatible")
     provider = OpenAICompatibleProvider.from_environment(provider_name)
     default_model = os.getenv("BIOMCP_LLM_MODEL")
+    limits = limits_from_environment(os.environ)
 
     @mcp.tool()
     def list_models() -> dict[str, Any]:
@@ -43,7 +44,11 @@ def create_server() -> MCPServer:
         chosen = model or default_model
         if not chosen:
             raise ValueError("Provide model or set BIOMCP_LLM_MODEL")
-        return provider.complete(model=chosen, input=[{"role": "system", "content": system}, {"role": "user", "content": prompt}], response_format=response_format, tools=tools, temperature=temperature, max_output_tokens=max_output_tokens)
+        bounded_input = validate_input(
+            [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+            limits,
+        )
+        return provider.complete(model=chosen, input=bounded_input, response_format=response_format, tools=tools, temperature=temperature, max_output_tokens=max_output_tokens)
 
     @mcp.tool()
     def chat(prompt: str, model: str | None = None, system: str = "You are a careful scientific assistant.", temperature: float | None = None, max_tokens: int | None = None, response_format: dict[str, Any] | None = None, tools: list[dict[str, Any]] | None = None) -> dict[str, Any]:
@@ -51,9 +56,13 @@ def create_server() -> MCPServer:
         chosen = model or default_model
         if not chosen:
             raise ValueError("Provide model or set BIOMCP_LLM_MODEL")
+        messages = validate_context(
+            [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+            limits,
+        )
         return provider.chat(
             model=chosen,
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+            messages=messages,
             response_format=response_format,
             tools=tools,
             temperature=temperature,
@@ -73,15 +82,8 @@ def create_server() -> MCPServer:
         if not chosen:
             raise ValueError("Provide model or set BIOMCP_LLM_MODEL")
         broker = MCPToolBroker(broker_config_from_environment())
-        limits = limits_from_environment(os.environ)
-
-        class _BoundedProvider:
-            def chat(self, **kwargs: Any) -> dict[str, Any] | Any:
-                kwargs["messages"] = validate_context(kwargs["messages"], limits)
-                return provider.chat(**kwargs)
-
         return chat_with_mcp_tools(
-            _BoundedProvider(),
+            provider,
             broker,
             model=chosen,
             messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}],

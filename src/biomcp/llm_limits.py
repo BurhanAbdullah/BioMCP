@@ -20,6 +20,20 @@ class LLMContextLimits:
             raise ValueError("max_context_bytes must be 1024..16777216")
 
 
+def _serialized_size(value: Any) -> int:
+    try:
+        return len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("LLM input contains non-serializable content") from exc
+
+
+def validate_input(value: Any, limits: LLMContextLimits) -> Any:
+    """Validate arbitrary provider input under the configured byte bound."""
+    if _serialized_size(value) > limits.max_context_bytes:
+        raise ValueError("LLM input exceeds configured context size limit")
+    return value
+
+
 def validate_context(messages: list[Mapping[str, Any]], limits: LLMContextLimits) -> list[dict[str, Any]]:
     """Validate and copy a message sequence under explicit resource bounds."""
     if not messages:

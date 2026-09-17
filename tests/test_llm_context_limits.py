@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-from biomcp.llm_limits import LLMContextLimits, limits_from_environment, validate_context
+from biomcp.llm_limits import LLMContextLimits, limits_from_environment, validate_context, validate_input
 
 
 def test_context_limits_accept_normal_conversation():
@@ -35,6 +35,24 @@ def test_context_limits_reject_non_serializable_content():
     limits = LLMContextLimits(max_messages=4, max_context_bytes=4096)
     with pytest.raises(ValueError, match="non-serializable"):
         validate_context([{"role": "user", "content": object()}], limits)
+
+
+def test_input_limits_accept_serializable_payload():
+    limits = LLMContextLimits(max_context_bytes=1024)
+    payload = {"prompt": "hello", "items": [1, 2, 3]}
+    assert validate_input(payload, limits) is payload
+
+
+def test_input_limits_reject_oversized_payload():
+    limits = LLMContextLimits(max_context_bytes=1024)
+    with pytest.raises(ValueError, match="LLM input exceeds"):
+        validate_input({"prompt": "x" * 2000}, limits)
+
+
+def test_input_limits_reject_non_serializable_payload():
+    limits = LLMContextLimits(max_context_bytes=1024)
+    with pytest.raises(ValueError, match="LLM input contains non-serializable"):
+        validate_input({"prompt": object()}, limits)
 
 
 def test_context_limits_environment_is_bounded(monkeypatch):
