@@ -1,4 +1,6 @@
-from biomcp import assess
+from argparse import Namespace
+
+from biomcp import assess, cli
 
 
 def test_assess_blocks_before_live_validation_when_doctor_fails(monkeypatch):
@@ -99,3 +101,29 @@ def test_assess_surfaces_live_validation_errors(monkeypatch):
     assert result["status"] == "error"
     assert result["evidence"]["contract_error"]["type"] == "RuntimeError"
     assert result["evidence"]["contract_error"]["message"] == "server handshake failed"
+
+
+def test_cmd_assess_all_uses_installable_registry_servers(monkeypatch, capsys):
+    monkeypatch.setattr(
+        cli,
+        "installable_servers",
+        lambda: [{"name": "bioimage"}, {"name": "imagej"}],
+    )
+    results = {
+        "bioimage": {"server": "bioimage", "status": "ready"},
+        "imagej": {"server": "imagej", "status": "blocked"},
+    }
+    monkeypatch.setattr(cli, "assess_server", results.get)
+
+    args = Namespace(all=True, server=None)
+    assert cli.cmd_assess(args) == 1
+    assert __import__("json").loads(capsys.readouterr().out) == list(results.values())
+
+
+def test_cmd_assess_single_server_preserves_existing_output(monkeypatch, capsys):
+    result = {"server": "bioimage", "status": "ready"}
+    monkeypatch.setattr(cli, "assess_server", lambda server: result)
+
+    args = Namespace(all=False, server="bioimage")
+    assert cli.cmd_assess(args) == 0
+    assert __import__("json").loads(capsys.readouterr().out) == result
