@@ -165,7 +165,10 @@ def _client_targets(clients: list[str]) -> list[tuple[str, Path]]:
 def _server_targets(names: list[str]) -> list[str]:
     """Validate all requested servers before any dependency installation."""
     for name in names:
-        entry = get_server(name)
+        try:
+            entry = get_server(name)
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
         if not entry.get("installable"):
             raise SystemExit(f"{name} is not installable (status: {entry.get('status')})")
     return names
