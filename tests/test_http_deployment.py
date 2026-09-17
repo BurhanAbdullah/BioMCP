@@ -26,6 +26,30 @@ def test_http_security_reads_host_and_origin_allowlists(monkeypatch: pytest.Monk
     assert settings.allowed_origins == ["https://app.example.org"]
 
 
+def test_http_security_rejects_wildcard_host_allowlist(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BIOMCP_HTTP_ALLOWED_HOSTS", "*")
+    monkeypatch.delenv("BIOMCP_HTTP_ALLOWED_ORIGINS", raising=False)
+
+    with pytest.raises(ValueError, match="wildcard"):
+        transport_security_from_environment()
+
+
+def test_http_security_rejects_wildcard_origin_allowlist(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BIOMCP_HTTP_ALLOWED_HOSTS", "mcp.example.org:*")
+    monkeypatch.setenv("BIOMCP_HTTP_ALLOWED_ORIGINS", "*")
+
+    with pytest.raises(ValueError, match="wildcard"):
+        transport_security_from_environment()
+
+
+def test_http_security_rejects_blank_allowlist_entries(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("BIOMCP_HTTP_ALLOWED_HOSTS", "mcp.example.org,,mcp2.example.org")
+    monkeypatch.delenv("BIOMCP_HTTP_ALLOWED_ORIGINS", raising=False)
+
+    with pytest.raises(ValueError, match="empty"):
+        transport_security_from_environment()
+
+
 def test_streamable_http_app_is_real_asgi_app() -> None:
     server = MCPServer("BioMCP-Test")
 
