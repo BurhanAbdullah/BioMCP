@@ -81,12 +81,16 @@ def create_server() -> MCPServer:
         chosen = model or default_model
         if not chosen:
             raise ValueError("Provide model or set BIOMCP_LLM_MODEL")
+        messages = validate_context(
+            [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+            limits,
+        )
         broker = MCPToolBroker(broker_config_from_environment())
         return chat_with_mcp_tools(
             provider,
             broker,
             model=chosen,
-            messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+            messages=messages,
             tool_names=tool_names,
             max_tool_rounds=max_tool_rounds,
         )
