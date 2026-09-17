@@ -172,6 +172,8 @@ def cmd_validate(args: argparse.Namespace) -> int:
 
 
 def cmd_assess(args: argparse.Namespace) -> int:
+    if not args.all and not args.server:
+        raise SystemExit("assess requires a server id or --all")
     names = [entry["name"] for entry in installable_servers()] if args.all else [args.server]
     results = [assess_server(name) for name in names]
     if args.all:
