@@ -29,6 +29,8 @@ jobs:
       - run: python -m biomcp --version
       - run: python -m biomcp list
       - run: python -m biomcp install --servers bioimage,imagej,llm --clients generic --dry-run
+      - name: Validate live BioImage MCP contract
+        run: python -m biomcp validate bioimage
       - name: Validate registry contract and source/package consistency
         run: |
           python - <<'PY'
@@ -76,6 +78,7 @@ jobs:
           cd /tmp
           biomcp --version
           biomcp list
+          biomcp validate bioimage
           python - <<'PY'
           from importlib.metadata import entry_points
           expected = {"biomcp", "biomcp-bioimage", "biomcp-imagej", "biomcp-llm"}
@@ -92,6 +95,7 @@ jobs:
           cd /tmp
           /tmp/biomcp-sdist-env/bin/biomcp --version
           /tmp/biomcp-sdist-env/bin/biomcp list
+          /tmp/biomcp-sdist-env/bin/biomcp validate bioimage
           /tmp/biomcp-sdist-env/bin/python - <<'PY'
           from importlib.metadata import entry_points
           expected = {"biomcp", "biomcp-bioimage", "biomcp-imagej", "biomcp-llm"}
