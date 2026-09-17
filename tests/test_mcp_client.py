@@ -5,6 +5,7 @@ from biomcp.mcp_client import _validate_tool_arguments, call_tool, discover_tool
 
 class _Tool:
     name = "sample"
+    description = None
     input_schema = {
         "type": "object",
         "properties": {"path": {"type": "string"}},
@@ -67,3 +68,37 @@ def test_json_arguments_requires_object():
         json_arguments("[]")
     with pytest.raises(ValueError, match="invalid JSON"):
         json_arguments("{")
+
+
+def test_discover_tools_uses_sdk_v2_client(monkeypatch):
+    import biomcp.mcp_client as mcp_client
+
+    class _FakeResult:
+        tools = [_Tool()]
+
+    class _FakeClient:
+        def __init__(self, params):
+            self.params = params
+            self.entered = False
+
+        async def __aenter__(self):
+            self.entered = True
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def list_tools(self):
+            assert self.entered
+            return _FakeResult()
+
+    monkeypatch.setattr(mcp_client, "Client", _FakeClient)
+    monkeypatch.setattr(mcp_client, "_server_parameters", lambda server: object())
+
+    assert discover_tools("llm") == [
+        {
+            "name": "sample",
+            "description": None,
+            "input_schema": _Tool.input_schema,
+        }
+    ]
