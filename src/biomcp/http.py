@@ -15,16 +15,22 @@ ASGIApp = Callable[
 ]
 
 
+def _validate_allowlist(name: str, entries: list[str], *, required: bool = False) -> list[str]:
+    if required and not entries:
+        raise ValueError(f"{name} must contain at least one allowed host")
+    normalized = [item.strip() for item in entries]
+    if any(not item for item in normalized):
+        raise ValueError(f"{name} must not contain empty allowlist entries")
+    if any(item == "*" for item in normalized):
+        raise ValueError(f"{name} must not contain a wildcard allowlist entry")
+    return normalized
+
+
 def _csv_env(name: str) -> list[str]:
     value = os.getenv(name, "")
     if not value.strip():
         return []
-    entries = [item.strip() for item in value.split(",")]
-    if any(not item for item in entries):
-        raise ValueError(f"{name} must not contain empty allowlist entries")
-    if any(item == "*" for item in entries):
-        raise ValueError(f"{name} must not contain a wildcard allowlist entry")
-    return entries
+    return _validate_allowlist(name, value.split(","))
 
 
 def _optional_positive_int_env(name: str) -> int | None:
@@ -106,11 +112,11 @@ def transport_security_from_environment() -> TransportSecuritySettings:
     explicit avoids silently disabling DNS-rebinding protection behind a
     reverse proxy or load balancer.
     """
-    allowed_hosts = _csv_env("BIOMCP_HTTP_ALLOWED_HOSTS")
-    if not allowed_hosts:
-        raise ValueError(
-            "BIOMCP_HTTP_ALLOWED_HOSTS must contain at least one allowed host"
-        )
+    allowed_hosts = _validate_allowlist(
+        "BIOMCP_HTTP_ALLOWED_HOSTS",
+        _csv_env("BIOMCP_HTTP_ALLOWED_HOSTS"),
+        required=True,
+    )
     allowed_origins = _csv_env("BIOMCP_HTTP_ALLOWED_ORIGINS")
     return TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
@@ -138,12 +144,12 @@ def create_streamable_http_app(
     if allowed_hosts is None:
         security = transport_security_from_environment()
     else:
-        if not allowed_hosts:
-            raise ValueError("allowed_hosts must contain at least one host")
+        allowed_hosts = _validate_allowlist("allowed_hosts", allowed_hosts, required=True)
+        allowed_origins = _validate_allowlist("allowed_origins", allowed_origins or [])
         security = TransportSecuritySettings(
             enable_dns_rebinding_protection=True,
             allowed_hosts=allowed_hosts,
-            allowed_origins=allowed_origins or [],
+            allowed_origins=allowed_origins,
         )
     app = server.streamable_http_app(
         host="0.0.0.0",
