@@ -61,3 +61,17 @@ def test_install_rejects_unknown_client_before_writing(monkeypatch, tmp_path):
         raise AssertionError("unsupported client must fail before configuration")
 
     assert not (tmp_path / ".config/biomcp/mcp.json").exists()
+
+
+def test_install_rejects_unknown_server_before_dependency_install(monkeypatch):
+    calls = []
+    monkeypatch.setattr(cli, "_install_extra", lambda entry: calls.append(entry["name"]))
+
+    try:
+        main(["install", "--servers", "bioimage,unknown", "--clients", "none"])
+    except SystemExit as exc:
+        assert str(exc) == "Unknown server: unknown"
+    else:
+        raise AssertionError("unknown server must fail before dependency installation")
+
+    assert calls == []
