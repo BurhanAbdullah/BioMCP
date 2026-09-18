@@ -41,7 +41,7 @@ def test_run_verify_blocks_non_ready_server(monkeypatch, capsys):
     monkeypatch.setattr(cli, "get_server", lambda _: {"installable": True, "command": "missing"})
     monkeypatch.setattr(cli, "assess_server", lambda _: {"status": "blocked", "reason": "missing dependency"})
 
-    assert main(["run", "imagej", "--verify"]) == 1
+    assert main(["run", "--verify", "imagej"]) == 1
     assert '"status": "blocked"' in capsys.readouterr().out
 
 
