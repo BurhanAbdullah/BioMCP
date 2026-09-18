@@ -23,6 +23,7 @@ all = ["numpy>=1.24", "tifffile>=2023", "scikit-image>=0.22", "pyimagej>=1.7", "
 
 [project.scripts]
 biomcp = "biomcp.cli:main"
+biomcp-registry = "biomcp.registry_cli:main"
 biomcp-bioimage = "biomcp_servers.bioimage:main"
 biomcp-imagej = "biomcp_servers.imagej:main"
 biomcp-llm = "biomcp_servers.llm:main"
