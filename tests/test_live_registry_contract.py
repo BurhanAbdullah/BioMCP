@@ -10,7 +10,7 @@ def test_validate_server_reports_missing_and_unexpected_tools(monkeypatch: pytes
     monkeypatch.setattr(
         contracts,
         "discover_tools",
-        lambda _: [{"name": "inspect_image"}, {"name": "new_tool"}],
+        lambda _, transport="stdio": [{"name": "inspect_image"}, {"name": "new_tool"}],
     )
 
     result = contracts.validate_server("bioimage")
@@ -26,11 +26,33 @@ def test_validate_server_reports_missing_and_unexpected_tools(monkeypatch: pytes
     assert result["ok"] is False
 
 
+def test_validate_server_forwards_explicit_http_transport(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen = {}
+
+    def fake_discover(server: str, *, transport: str = "stdio"):
+        seen.update(server=server, transport=transport)
+        return [
+            {"name": "inspect_image"},
+            {"name": "intensity_summary"},
+            {"name": "threshold_image"},
+        ]
+
+    monkeypatch.setattr(contracts, "discover_tools", fake_discover)
+
+    result = contracts.validate_server("bioimage", transport="streamable-http")
+
+    assert seen == {"server": "bioimage", "transport": "streamable-http"}
+    assert result["transport"] == "streamable-http"
+    assert result["declared_transports"] == ["stdio"]
+    assert result["ok"] is True
+
+
 def test_validate_bioimage_against_live_stdio_server() -> None:
     result = contracts.validate_server("bioimage")
 
     assert result["ok"] is True
     assert result["status"] == "experimental"
-    assert result["transport"] == ["stdio"]
+    assert result["transport"] == "stdio"
+    assert result["declared_transports"] == ["stdio"]
     assert result["missing_tools"] == []
     assert result["unexpected_tools"] == []
