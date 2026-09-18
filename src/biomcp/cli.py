@@ -25,6 +25,7 @@ from .doctor import diagnose
 from .lifecycle import snapshot
 from .mcp_client import call_tool, discover_tools, json_arguments
 from .registry import get_server, installable_servers, load_registry
+from .transport import resolve_transport_entry
 
 
 def _client_paths(*, platform: str | None = None, os_name: str | None = None, home: Path | None = None, path_cls=Path) -> dict[str, Path]:
@@ -54,7 +55,17 @@ def _server_configs(names: list[str]) -> dict[str, dict[str, Any]]:
         entry = get_server(name)
         if not entry.get("installable"):
             raise SystemExit(f"{name} is not installable (status: {entry.get('status')})")
-        result[f"biomcp_{name}"] = {"command": entry["command"], "args": list(entry.get("args", []))}
+        transport = resolve_transport_entry(entry, client="default")
+        key = f"biomcp_{name}"
+        if transport == "stdio":
+            result[key] = {"command": entry["command"], "args": list(entry.get("args", []))}
+        elif transport == "streamable-http":
+            endpoint = entry.get("endpoint")
+            if not isinstance(endpoint, str) or not endpoint.strip():
+                raise SystemExit(f"{name} declares streamable-http but has no HTTP endpoint")
+            result[key] = {"url": endpoint.strip()}
+        else:
+            raise SystemExit(f"{name} declares unsupported client configuration transport: {transport}")
     return result
 
 
@@ -94,8 +105,11 @@ def _write_json(path: Path, servers: dict[str, dict[str, Any]]) -> None:
 def _write_codex(path: Path, servers: dict[str, dict[str, Any]]) -> None:
     existing = path.read_text(encoding="utf-8") if path.exists() else ""
     for name, cfg in servers.items():
-        args = "[" + ", ".join(json.dumps(x) for x in cfg.get("args", [])) + "]"
-        block = f'[mcp_servers.{name}]\ncommand = {json.dumps(cfg["command"])}\nargs = {args}\n'
+        if "url" in cfg:
+            block = f'[mcp_servers.{name}]\nurl = {json.dumps(cfg["url"])}\n'
+        else:
+            args = "[" + ", ".join(json.dumps(x) for x in cfg.get("args", [])) + "]"
+            block = f'[mcp_servers.{name}]\ncommand = {json.dumps(cfg["command"])}\nargs = {args}\n'
         pattern = re.compile(rf"(?ms)^\[mcp_servers\.{re.escape(name)}\]\n.*?(?=^\[|\Z)")
         if pattern.search(existing):
             existing = pattern.sub(block, existing, count=1)
@@ -259,10 +273,15 @@ def cmd_assess(args: argparse.Namespace) -> int:
     results = [assess_server(name) for name in names]
     if args.all:
         print(json.dumps(results, indent=2, sort_keys=True))
-        return 0 if all(result["status"] == "ready" for result in results) else 1
-    result = results[0]
+        return 0 if all(item["status"] == "ready" for item in results) else 1
+    print(json.dumps(results[0], indent=2, sort_keys=True))
+    return 0 if results[0]["status"] == "ready" else 1
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    result = diagnose(args.server) if args.server else diagnose()
     print(json.dumps(result, indent=2, sort_keys=True))
-    return 0 if result["status"] == "ready" else 1
+    return 0 if result["ok"] else 1
 
 
 def cmd_lifecycle(args: argparse.Namespace) -> int:
@@ -274,134 +293,107 @@ def cmd_lifecycle(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_call(args: argparse.Namespace) -> int:
-    arguments = json_arguments(args.arguments)
-    if args.verify:
-        readiness = assess_server(args.server)
-        print(json.dumps(readiness, indent=2, sort_keys=True))
-        if readiness["status"] != "ready":
-            return 1
-    result = call_tool(args.server, args.tool, arguments)
-    print(json.dumps(result, indent=2, sort_keys=True))
-    return 1 if result.get("is_error") else 0
-
-
 def cmd_install(args: argparse.Namespace) -> int:
-    if args.all:
-        names = [entry["name"] for entry in installable_servers()]
-    elif args.servers:
-        names = [s.strip() for s in args.servers.split(",") if s.strip()]
-    else:
-        names = [entry["name"] for entry in installable_servers()]
-    if not names:
-        raise SystemExit("No installable BioMCP servers selected")
-    _server_targets(names)
-    clients = [c.strip() for c in args.clients.split(",") if c.strip() and c.strip() != "none"]
+    names = _server_targets([item.strip() for item in args.servers.split(",") if item.strip()])
+    clients = [item.strip() for item in args.clients.split(",") if item.strip()]
     targets = _client_targets(clients)
-    if getattr(args, "plan", False):
+    if args.plan:
         print(json.dumps(_installation_plan(names, targets), indent=2, sort_keys=True))
         return 0
     _install_selected(names, dry_run=args.dry_run)
-    if args.verify and not args.dry_run:
-        failures = _verify_installed(names)
-        if failures:
-            return 1
-    servers = _server_configs(names)
-    for client, path in targets:
-        if args.dry_run:
-            print(json.dumps({"client": client, "path": str(path), "mcpServers": servers}, indent=2))
-    if not args.dry_run:
-        _configure_clients(targets, servers)
+    if args.dry_run:
+        print(json.dumps(_installation_plan(names, targets), indent=2, sort_keys=True))
+        return 0
+    if clients and clients != ["none"]:
+        _configure_clients(targets, _server_configs(names))
+    if args.verify:
+        return _verify_installed(names)
     return 0
 
 
-def cmd_doctor(args: argparse.Namespace) -> int:
-    results = diagnose(args.server)
-    failures = 0
-    for result in results:
-        ok = bool(result["ok"])
-        status = "OK" if ok else "MISSING"
-        detail = str(result["command"])
-        missing = list(result["missing_dependencies"])
-        config = list(result["missing_configuration"])
-        if missing:
-            detail += f" | dependencies: {', '.join(missing)}"
-        if config:
-            detail += f" | config: {', '.join(config)}"
-        print(f"{str(result['name']):18} {status:8} {detail}")
-        failures += int(not ok)
-    return 1 if failures else 0
-
-
 def cmd_run(args: argparse.Namespace) -> int:
-    entry = get_server(args.server)
-    if not entry.get("installable"):
-        raise SystemExit(f"{args.server} is not installable (status: {entry.get('status')})")
-    command = str(entry["command"])
-    if shutil.which(command) is None:
-        raise SystemExit(f"Command not found: {command}. Run `biomcp doctor --server {args.server}`.")
-    return subprocess.run([command, *args.extra], check=False).returncode
+    arguments = json_arguments(args.arguments)
+    result = call_tool(args.server, args.tool, arguments, transport=args.transport)
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0 if not result.get("is_error") else 1
+
+
+def cmd_discover(args: argparse.Namespace) -> int:
+    tools = discover_tools(args.server, transport=args.transport)
+    print(json.dumps(tools, indent=2, sort_keys=True))
+    return 0
+
+
+def cmd_config(args: argparse.Namespace) -> int:
+    if args.action == "show":
+        print(json.dumps(show_config(), indent=2, sort_keys=True))
+        return 0
+    set_value(args.key, args.value)
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="biomcp")
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    list_parser = sub.add_parser("list")
+    list_parser.set_defaults(func=cmd_list)
+
+    tools_parser = sub.add_parser("tools")
+    tools_parser.add_argument("server")
+    tools_parser.set_defaults(func=cmd_tools)
+
+    validate_parser = sub.add_parser("validate")
+    validate_parser.add_argument("server")
+    validate_parser.set_defaults(func=cmd_validate)
+
+    assess_parser = sub.add_parser("assess")
+    assess_parser.add_argument("server", nargs="?")
+    assess_parser.add_argument("--all", action="store_true")
+    assess_parser.set_defaults(func=cmd_assess)
+
+    doctor_parser = sub.add_parser("doctor")
+    doctor_parser.add_argument("server", nargs="?")
+    doctor_parser.set_defaults(func=cmd_doctor)
+
+    lifecycle_parser = sub.add_parser("lifecycle")
+    lifecycle_parser.add_argument("server", nargs="?")
+    lifecycle_parser.set_defaults(func=cmd_lifecycle)
+
+    install_parser = sub.add_parser("install")
+    install_parser.add_argument("--servers", default="bioimage")
+    install_parser.add_argument("--clients", default="none")
+    install_parser.add_argument("--dry-run", action="store_true")
+    install_parser.add_argument("--plan", action="store_true")
+    install_parser.add_argument("--verify", action="store_true")
+    install_parser.set_defaults(func=cmd_install, plan=False)
+
+    run_parser = sub.add_parser("run")
+    run_parser.add_argument("server")
+    run_parser.add_argument("tool")
+    run_parser.add_argument("--arguments", default="{}")
+    run_parser.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
+    run_parser.set_defaults(func=cmd_run)
+
+    discover_parser = sub.add_parser("discover")
+    discover_parser.add_argument("server")
+    discover_parser.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
+    discover_parser.set_defaults(func=cmd_discover)
+
+    config_parser = sub.add_parser("config")
+    config_parser.add_argument("action", choices=["show", "set"])
+    config_parser.add_argument("key", nargs="?")
+    config_parser.add_argument("value", nargs="?")
+    config_parser.set_defaults(func=cmd_config)
+
+    return parser
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="biomcp", description="MCP servers and adapters for scientific software")
-    parser.add_argument("--version", action="version", version=f"BioMCP {__version__}")
-    sub = parser.add_subparsers(dest="command", required=True)
-    p = sub.add_parser("list", help="list registered servers, transports and lifecycle state")
-    p.set_defaults(func=cmd_list)
-    p = sub.add_parser("tools", help="discover MCP tools exposed by a registered server")
-    p.add_argument("server")
-    p.set_defaults(func=cmd_tools)
-    p = sub.add_parser("validate", help="compare registry-declared tools with live MCP discovery")
-    p.add_argument("server")
-    p.set_defaults(func=cmd_validate)
-    p = sub.add_parser("assess", help="make a read-only readiness decision from registry and live MCP evidence")
-    p.add_argument("server", nargs="?", help="registered server id; omit when using --all")
-    p.add_argument("--all", action="store_true", help="assess every installable server from the registry")
-    p.set_defaults(func=cmd_assess)
-    p = sub.add_parser("lifecycle", help="show registry-authoritative server lifecycle state")
-    p.add_argument("server", nargs="?", help="registered server id; omit to show the full registry snapshot")
-    p.set_defaults(func=cmd_lifecycle)
-    p = sub.add_parser("call", help="call a registry-declared MCP tool on a registered server")
-    p.add_argument("server")
-    p.add_argument("tool")
-    p.add_argument("--arguments", default="{}", help="JSON object containing tool arguments")
-    p.add_argument("--verify", action="store_true", help="require a live ready assessment before execution")
-    p.set_defaults(func=cmd_call)
-    p = sub.add_parser("install", help="install selected integration dependencies and configure MCP clients")
-    p.add_argument("--servers", help="comma separated server ids; default is all installable servers")
-    p.add_argument("--all", action="store_true", help="select every installable server")
-    p.add_argument("--clients", default="generic", help="generic, claude-desktop, codex, or none")
-    p.add_argument("--dry-run", action="store_true", help="show dependency and configuration changes without writing")
-    p.add_argument("--plan", action="store_true", help="emit a deterministic JSON install plan without changing the system")
-    p.add_argument("--verify", action="store_true", help="perform live MCP readiness checks before client configuration")
-    p.set_defaults(func=cmd_install)
-    p = sub.add_parser("doctor", help="check registered server commands and declared dependencies")
-    p.add_argument("--server")
-    p.set_defaults(func=cmd_doctor)
-    p = sub.add_parser("run", help="launch a registered MCP server over stdio")
-    p.add_argument("server")
-    p.add_argument("extra", nargs=argparse.REMAINDER)
-    p.set_defaults(func=cmd_run)
-    p = sub.add_parser("config", help="inspect or edit persistent BioMCP configuration")
-    cfg = p.add_subparsers(dest="config_command", required=True)
-    q = cfg.add_parser("show")
-    q.set_defaults(func=lambda _: print(show_config()) or 0)
-    q = cfg.add_parser("set")
-    q.add_argument("section_key")
-    q.add_argument("value")
-
-    def _set(args: argparse.Namespace) -> int:
-        if "." not in args.section_key:
-            raise SystemExit("expected section.key")
-        section, key = args.section_key.split(".", 1)
-        set_value(section, key, args.value)
-        return 0
-
-    q.set_defaults(func=_set)
+    parser = build_parser()
     args = parser.parse_args(argv)
-    return int(args.func(args))
+    return args.func(args)
 
 
 if __name__ == "__main__":
-    raise SystemExit(main(argv=None))
+    raise SystemExit(main())
