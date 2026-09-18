@@ -61,3 +61,32 @@ def test_install_rejects_unknown_client_before_writing(monkeypatch, tmp_path):
         raise AssertionError("unsupported client must fail before configuration")
 
     assert not (tmp_path / ".config/biomcp/mcp.json").exists()
+
+
+def test_install_rolls_back_prior_client_when_later_write_fails(monkeypatch, tmp_path):
+    monkeypatch.setattr(cli.Path, "home", lambda: tmp_path)
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    generic = tmp_path / ".config/biomcp/mcp.json"
+    generic.parent.mkdir(parents=True)
+    original = '{"mcpServers": {"existing": {"command": "keep"}}}\n'
+    generic.write_text(original, encoding="utf-8")
+
+    real_write_json = cli._write_json
+    calls = {"count": 0}
+
+    def fail_second(path, servers):
+        calls["count"] += 1
+        if calls["count"] == 2:
+            raise RuntimeError("simulated client write failure")
+        return real_write_json(path, servers)
+
+    monkeypatch.setattr(cli, "_write_json", fail_second)
+    try:
+        main(["install", "--servers", "bioimage", "--clients", "generic,claude-desktop"])
+    except RuntimeError as exc:
+        assert str(exc) == "simulated client write failure"
+    else:
+        raise AssertionError("later client failure must abort installation")
+
+    assert generic.read_text(encoding="utf-8") == original
+    assert not (tmp_path / ".config/Claude/claude_desktop_config.json").exists()
