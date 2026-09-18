@@ -206,6 +206,27 @@ def _server_targets(names: list[str]) -> list[str]:
     return names
 
 
+def _installation_plan(names: list[str], targets: list[tuple[str, Path]]) -> dict[str, Any]:
+    """Build a deterministic, side-effect-free installer plan from registry truth."""
+    servers: list[dict[str, Any]] = []
+    for name in names:
+        entry = get_server(name)
+        servers.append({
+            "name": name,
+            "status": entry["status"],
+            "package_extra": entry.get("package_extra"),
+            "missing_dependencies": _missing_dependencies(entry),
+            "command": entry["command"],
+            "args": list(entry.get("args", [])),
+        })
+    return {
+        "product": load_registry()["product"],
+        "servers": servers,
+        "clients": [{"name": client, "path": str(path)} for client, path in targets],
+        "configuration": _server_configs(names),
+    }
+
+
 def cmd_list(_: argparse.Namespace) -> int:
     print(f"BioMCP {__version__}\n")
     print(f"{'server':16} {'status':12} {'transport':22} description")
@@ -277,6 +298,9 @@ def cmd_install(args: argparse.Namespace) -> int:
     _server_targets(names)
     clients = [c.strip() for c in args.clients.split(",") if c.strip() and c.strip() != "none"]
     targets = _client_targets(clients)
+    if getattr(args, "plan", False):
+        print(json.dumps(_installation_plan(names, targets), indent=2, sort_keys=True))
+        return 0
     _install_selected(names, dry_run=args.dry_run)
     if args.verify and not args.dry_run:
         failures = _verify_installed(names)
@@ -349,6 +373,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--all", action="store_true", help="select every installable server")
     p.add_argument("--clients", default="generic", help="generic, claude-desktop, codex, or none")
     p.add_argument("--dry-run", action="store_true", help="show dependency and configuration changes without writing")
+    p.add_argument("--plan", action="store_true", help="emit a deterministic JSON install plan without changing the system")
     p.add_argument("--verify", action="store_true", help="perform live MCP readiness checks before client configuration")
     p.set_defaults(func=cmd_install)
     p = sub.add_parser("doctor", help="check registered server commands and declared dependencies")
