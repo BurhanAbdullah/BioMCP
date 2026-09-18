@@ -22,6 +22,7 @@ from .assess import assess_server
 from .config import show as show_config, set_value
 from .contracts import validate_server
 from .doctor import diagnose
+from .lifecycle import snapshot
 from .mcp_client import call_tool, discover_tools, json_arguments
 from .registry import get_server, installable_servers, load_registry
 
@@ -243,6 +244,15 @@ def cmd_assess(args: argparse.Namespace) -> int:
     return 0 if result["status"] == "ready" else 1
 
 
+def cmd_lifecycle(args: argparse.Namespace) -> int:
+    try:
+        result = snapshot(args.server)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
 def cmd_call(args: argparse.Namespace) -> int:
     arguments = json_arguments(args.arguments)
     if args.verify:
@@ -325,6 +335,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("server", nargs="?", help="registered server id; omit when using --all")
     p.add_argument("--all", action="store_true", help="assess every installable server from the registry")
     p.set_defaults(func=cmd_assess)
+    p = sub.add_parser("lifecycle", help="show registry-authoritative server lifecycle state")
+    p.add_argument("server", nargs="?", help="registered server id; omit to show the full registry snapshot")
+    p.set_defaults(func=cmd_lifecycle)
     p = sub.add_parser("call", help="call a registry-declared MCP tool on a registered server")
     p.add_argument("server")
     p.add_argument("tool")
