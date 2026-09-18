@@ -26,7 +26,7 @@ def test_validate_server_reports_missing_and_unexpected_tools(monkeypatch: pytes
     assert result["ok"] is False
 
 
-def test_validate_server_forwards_explicit_http_transport(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_validate_server_forwards_declared_stdio_transport(monkeypatch: pytest.MonkeyPatch) -> None:
     seen = {}
 
     def fake_discover(server: str, *, transport: str = "stdio"):
@@ -39,12 +39,24 @@ def test_validate_server_forwards_explicit_http_transport(monkeypatch: pytest.Mo
 
     monkeypatch.setattr(contracts, "discover_tools", fake_discover)
 
-    result = contracts.validate_server("bioimage", transport="streamable-http")
+    result = contracts.validate_server("bioimage", transport="stdio")
 
-    assert seen == {"server": "bioimage", "transport": "streamable-http"}
-    assert result["transport"] == "streamable-http"
+    assert seen == {"server": "bioimage", "transport": "stdio"}
+    assert result["transport"] == "stdio"
     assert result["declared_transports"] == ["stdio"]
     assert result["ok"] is True
+
+
+def test_validate_server_rejects_undeclared_transport_before_discovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_discover(*args, **kwargs):
+        raise AssertionError("live discovery must not run for an undeclared transport")
+
+    monkeypatch.setattr(contracts, "discover_tools", fail_discover)
+
+    with pytest.raises(ValueError, match="cannot be validated over streamable-http"):
+        contracts.validate_server("bioimage", transport="streamable-http")
 
 
 def test_validate_bioimage_against_live_stdio_server() -> None:
