@@ -39,6 +39,23 @@ def _server_parameters(server: str) -> StdioServerParameters:
     return StdioServerParameters(command=command, args=args, env=env)
 
 
+def _http_endpoint(server: str, entry: dict[str, Any]) -> str:
+    """Return a registry-declared HTTP endpoint; never invent one."""
+    endpoint = entry.get("endpoint")
+    if not isinstance(endpoint, str) or not endpoint.strip():
+        raise ValueError(f"Server {server} does not declare an HTTP MCP endpoint")
+    return endpoint.strip()
+
+
+def _client(server: str, entry: dict[str, Any]):
+    transport = resolve_transport_entry(entry, client="default")
+    if transport == "stdio":
+        return Client(_server_parameters(server))
+    if transport == "streamable-http":
+        return Client(_http_endpoint(server, entry))
+    raise ValueError(f"Server {server} declares unsupported client transport: {transport}")
+
+
 def _declared_tool(server: str, tool: str) -> None:
     entry = get_server(server)
     declared = entry.get("tools", [])
@@ -69,8 +86,10 @@ def _validate_tool_arguments(tool: Any, arguments: dict[str, Any]) -> None:
 
 
 async def _discover_tools(server: str) -> list[dict[str, Any]]:
-    params = _server_parameters(server)
-    async with Client(params) as client:
+    entry = get_server(server)
+    if not entry.get("installable") and not entry.get("external"):
+        raise ValueError(f"{server} is not installable or external")
+    async with _client(server, entry) as client:
         result = await client.list_tools()
         return [
             {
@@ -84,8 +103,8 @@ async def _discover_tools(server: str) -> list[dict[str, Any]]:
 
 async def _call_tool(server: str, tool: str, arguments: dict[str, Any]) -> dict[str, Any]:
     _declared_tool(server, tool)
-    params = _server_parameters(server)
-    async with Client(params) as client:
+    entry = get_server(server)
+    async with _client(server, entry) as client:
         listed = await client.list_tools()
         live_tool = next((item for item in listed.tools if item.name == tool), None)
         if live_tool is None:
