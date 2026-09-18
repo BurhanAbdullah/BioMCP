@@ -1,19 +1,17 @@
 """Registry-authoritative MCP transport resolution."""
 from __future__ import annotations
 
+from typing import Any
+
 from .registry import get_server
 
 
 _SUPPORTED_CLIENT_TRANSPORTS = {"stdio", "streamable-http", "sse"}
 
 
-def resolve_transport(server: str, *, client: str = "default") -> str:
-    """Resolve one unambiguous transport declared by the registry.
-
-    The resolver never infers a transport from command availability or runtime
-    behavior.  A client may explicitly restrict the transports it supports.
-    """
-    entry = get_server(server)
+def resolve_transport_entry(entry: dict[str, Any], *, client: str = "default") -> str:
+    """Resolve one unambiguous transport from one registry entry."""
+    server = entry.get("name", "<unknown>")
     if not entry.get("installable") and not entry.get("external"):
         raise ValueError(f"{server} is not installable or external")
     declared = entry.get("transport", [])
@@ -37,3 +35,8 @@ def resolve_transport(server: str, *, client: str = "default") -> str:
             raise ValueError(f"Server {server} does not declare a transport supported by {client}")
         raise ValueError(f"Server {server} declares multiple transports supported by {client}: {', '.join(matches)}")
     return matches[0]
+
+
+def resolve_transport(server: str, *, client: str = "default") -> str:
+    """Resolve one unambiguous transport declared by the authoritative registry."""
+    return resolve_transport_entry(get_server(server), client=client)
