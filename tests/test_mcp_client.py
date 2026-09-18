@@ -114,7 +114,7 @@ def test_call_verify_rejects_non_ready_server(monkeypatch):
     monkeypatch.setattr(cli, "call_tool", lambda *args: calls.append(args))
 
     assert cli.cmd_call(
-        type("Args", (), {"server": "llm", "tool": "list_models", "arguments": "{}", "verify": True})()
+        type("Args", (), {"server": "llm", "tool": "list_models", "arguments": "{}", "verify": True, "transport": "stdio"})()
     ) == 1
     assert calls == []
 
@@ -126,5 +126,5 @@ def test_call_verify_allows_ready_server(monkeypatch):
     monkeypatch.setattr(cli, "call_tool", lambda *args: {"is_error": False, "content": []})
 
     assert cli.cmd_call(
-        type("Args", (), {"server": "llm", "tool": "list_models", "arguments": "{}", "verify": True})()
+        type("Args", (), {"server": "llm", "tool": "list_models", "arguments": "{}", "verify": True, "transport": "stdio"})()
     ) == 0
