@@ -21,6 +21,16 @@ _BLOCKED_CHILD_ENV_KEYS = frozenset(
         "LD_LIBRARY_PATH",
         "DYLD_INSERT_LIBRARIES",
         "DYLD_LIBRARY_PATH",
+        "PYTHONINSPECT",
+        "PYTHONSTARTUP",
+        "PYTHONBREAKPOINT",
+        "PYTHONWARNINGS",
+        "NODE_OPTIONS",
+        "NODE_PATH",
+        "RUBYOPT",
+        "PERL5OPT",
+        "BASH_ENV",
+        "ENV",
     }
 )
 

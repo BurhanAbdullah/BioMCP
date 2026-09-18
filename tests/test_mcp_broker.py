@@ -153,7 +153,7 @@ def test_environment_rejects_invalid_limits(monkeypatch):
         broker_config_from_environment()
 
 
-@pytest.mark.parametrize("key", ["PATH", "PYTHONPATH", "PYTHONHOME", "LD_PRELOAD", "LD_LIBRARY_PATH", "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH"])
+@pytest.mark.parametrize("key", ["PATH", "PYTHONPATH", "PYTHONHOME", "LD_PRELOAD", "LD_LIBRARY_PATH", "DYLD_INSERT_LIBRARIES", "DYLD_LIBRARY_PATH", "PYTHONINSPECT", "PYTHONSTARTUP", "PYTHONBREAKPOINT", "PYTHONWARNINGS", "NODE_OPTIONS", "NODE_PATH", "RUBYOPT", "PERL5OPT", "BASH_ENV", "ENV"])
 def test_config_rejects_child_environment_security_overrides(key):
     with pytest.raises(ValueError, match=f"cannot override {key}"):
         MCPBrokerConfig(command=(sys.executable,), allowed_executables=frozenset({os.path.realpath(sys.executable)}), allowed_tools=frozenset({"echo"}), child_env=((key, "/unsafe"),))
