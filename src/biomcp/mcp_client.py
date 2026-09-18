@@ -10,14 +10,14 @@ from jsonschema import Draft202012Validator, SchemaError
 from mcp import Client, StdioServerParameters
 
 from .registry import get_server
-from .transport import resolve_transport
+from .transport import resolve_transport_entry
 
 
 def _server_parameters(server: str) -> StdioServerParameters:
     entry = get_server(server)
     if not entry.get("installable"):
         raise ValueError(f"{server} is not installable and cannot be launched by the BioMCP client")
-    if resolve_transport(server, client="stdio") != "stdio":
+    if resolve_transport_entry(entry, client="stdio") != "stdio":
         raise ValueError(f"Server {server} does not declare stdio transport support")
     command = entry.get("command")
     if not isinstance(command, str) or not command.strip():
