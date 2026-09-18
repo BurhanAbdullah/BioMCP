@@ -104,3 +104,45 @@ def test_install_rejects_unknown_server_before_dependency_install(monkeypatch):
         raise AssertionError("unknown server must fail before dependency installation")
 
     assert calls == []
+
+
+def test_server_configs_use_registry_http_endpoint(monkeypatch):
+    entry = {
+        "name": "http-fixture",
+        "installable": True,
+        "status": "experimental",
+        "transport": ["streamable-http"],
+        "endpoint": "https://example.invalid/mcp",
+    }
+    monkeypatch.setattr(cli, "get_server", lambda name: entry if name == "http-fixture" else (_ for _ in ()).throw(ValueError(name)))
+
+    assert cli._server_configs(["http-fixture"]) == {
+        "biomcp_http-fixture": {"url": "https://example.invalid/mcp"}
+    }
+
+
+def test_server_configs_reject_http_without_endpoint(monkeypatch):
+    entry = {
+        "name": "http-fixture",
+        "installable": True,
+        "status": "experimental",
+        "transport": ["streamable-http"],
+    }
+    monkeypatch.setattr(cli, "get_server", lambda name: entry)
+
+    try:
+        cli._server_configs(["http-fixture"])
+    except SystemExit as exc:
+        assert str(exc) == "http-fixture declares streamable-http but has no HTTP endpoint"
+    else:
+        raise AssertionError("HTTP configuration requires a registry endpoint")
+
+
+def test_codex_writes_http_url_config(tmp_path):
+    path = tmp_path / "config.toml"
+    cli._write_codex(path, {"biomcp_http-fixture": {"url": "https://example.invalid/mcp"}})
+
+    content = path.read_text(encoding="utf-8")
+    assert '[mcp_servers.biomcp_http-fixture]' in content
+    assert 'url = "https://example.invalid/mcp"' in content
+    assert "command =" not in content

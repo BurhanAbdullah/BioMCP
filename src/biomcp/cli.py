@@ -25,6 +25,7 @@ from .doctor import diagnose
 from .lifecycle import snapshot
 from .mcp_client import call_tool, discover_tools, json_arguments
 from .registry import get_server, installable_servers, load_registry
+from .transport import resolve_transport_entry
 
 
 def _client_paths(*, platform: str | None = None, os_name: str | None = None, home: Path | None = None, path_cls=Path) -> dict[str, Path]:
@@ -54,7 +55,17 @@ def _server_configs(names: list[str]) -> dict[str, dict[str, Any]]:
         entry = get_server(name)
         if not entry.get("installable"):
             raise SystemExit(f"{name} is not installable (status: {entry.get('status')})")
-        result[f"biomcp_{name}"] = {"command": entry["command"], "args": list(entry.get("args", []))}
+        transport = resolve_transport_entry(entry, client="default")
+        key = f"biomcp_{name}"
+        if transport == "stdio":
+            result[key] = {"command": entry["command"], "args": list(entry.get("args", []))}
+        elif transport == "streamable-http":
+            endpoint = entry.get("endpoint")
+            if not isinstance(endpoint, str) or not endpoint.strip():
+                raise SystemExit(f"{name} declares streamable-http but has no HTTP endpoint")
+            result[key] = {"url": endpoint.strip()}
+        else:
+            raise SystemExit(f"{name} declares unsupported client configuration transport: {transport}")
     return result
 
 
@@ -94,8 +105,11 @@ def _write_json(path: Path, servers: dict[str, dict[str, Any]]) -> None:
 def _write_codex(path: Path, servers: dict[str, dict[str, Any]]) -> None:
     existing = path.read_text(encoding="utf-8") if path.exists() else ""
     for name, cfg in servers.items():
-        args = "[" + ", ".join(json.dumps(x) for x in cfg.get("args", [])) + "]"
-        block = f'[mcp_servers.{name}]\ncommand = {json.dumps(cfg["command"])}\nargs = {args}\n'
+        if "url" in cfg:
+            block = f'[mcp_servers.{name}]\nurl = {json.dumps(cfg["url"])}\n'
+        else:
+            args = "[" + ", ".join(json.dumps(x) for x in cfg.get("args", [])) + "]"
+            block = f'[mcp_servers.{name}]\ncommand = {json.dumps(cfg["command"])}\nargs = {args}\n'
         pattern = re.compile(rf"(?ms)^\[mcp_servers\.{re.escape(name)}\]\n.*?(?=^\[|\Z)")
         if pattern.search(existing):
             existing = pattern.sub(block, existing, count=1)
