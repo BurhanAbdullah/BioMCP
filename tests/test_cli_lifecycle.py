@@ -35,3 +35,21 @@ def test_lifecycle_command_rejects_unknown_server(monkeypatch):
         assert str(exc) == "Unknown BioMCP server: missing"
     else:
         raise AssertionError("expected SystemExit")
+
+
+def test_run_verify_blocks_non_ready_server(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "get_server", lambda _: {"installable": True, "command": "missing"})
+    monkeypatch.setattr(cli, "assess_server", lambda _: {"status": "blocked", "reason": "missing dependency"})
+
+    assert main(["run", "imagej", "--verify"]) == 1
+    assert '"status": "blocked"' in capsys.readouterr().out
+
+
+def test_run_without_verify_preserves_existing_launch(monkeypatch):
+    monkeypatch.setattr(cli, "get_server", lambda _: {"installable": True, "command": "imagej"})
+    monkeypatch.setattr(cli.shutil, "which", lambda command: "/usr/bin/imagej")
+    calls = []
+    monkeypatch.setattr(cli.subprocess, "run", lambda argv, check=False: calls.append((argv, check)) or type("Result", (), {"returncode": 0})())
+
+    assert main(["run", "imagej", "--", "--headless"]) == 0
+    assert calls == [(["imagej", "--", "--headless"], False)]
