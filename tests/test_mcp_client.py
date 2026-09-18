@@ -111,7 +111,7 @@ def test_call_verify_rejects_non_ready_server(monkeypatch):
     calls = []
 
     monkeypatch.setattr(cli, "assess_server", lambda server: {"server": server, "status": "drift"})
-    monkeypatch.setattr(cli, "call_tool", lambda *args: calls.append(args))
+    monkeypatch.setattr(cli, "call_tool", lambda *args, **kwargs: calls.append((args, kwargs)))
 
     assert cli.cmd_call(
         type("Args", (), {"server": "llm", "tool": "list_models", "arguments": "{}", "verify": True, "transport": "stdio"})()
@@ -123,7 +123,7 @@ def test_call_verify_allows_ready_server(monkeypatch):
     import biomcp.cli as cli
 
     monkeypatch.setattr(cli, "assess_server", lambda server: {"server": server, "status": "ready"})
-    monkeypatch.setattr(cli, "call_tool", lambda *args: {"is_error": False, "content": []})
+    monkeypatch.setattr(cli, "call_tool", lambda *args, **kwargs: {"is_error": False, "content": []})
 
     assert cli.cmd_call(
         type("Args", (), {"server": "llm", "tool": "list_models", "arguments": "{}", "verify": True, "transport": "stdio"})()
