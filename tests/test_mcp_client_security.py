@@ -28,6 +28,7 @@ def test_server_parameters_allow_only_registered_configuration(monkeypatch):
             "command": "python",
             "args": [],
             "config": ["BIOMCP_ALLOWED_SETTING"],
+            "transport": ["stdio"],
         },
     )
     params = _server_parameters("fixture")
@@ -46,6 +47,7 @@ def test_mcp_stdio_child_does_not_receive_parent_secret(monkeypatch):
             "args": ["-c", ENV_PROBE_SERVER_CODE],
             "config": [],
             "tools": ["env_present"],
+            "transport": ["stdio"],
         },
     )
 
