@@ -90,3 +90,17 @@ def test_install_rolls_back_prior_client_when_later_write_fails(monkeypatch, tmp
 
     assert generic.read_text(encoding="utf-8") == original
     assert not (tmp_path / ".config/Claude/claude_desktop_config.json").exists()
+
+
+def test_install_rejects_unknown_server_before_dependency_install(monkeypatch):
+    calls = []
+    monkeypatch.setattr(cli, "_install_extra", lambda entry: calls.append(entry["name"]))
+
+    try:
+        main(["install", "--servers", "bioimage,unknown", "--clients", "none"])
+    except SystemExit as exc:
+        assert str(exc) == "Unknown BioMCP server: unknown"
+    else:
+        raise AssertionError("unknown server must fail before dependency installation")
+
+    assert calls == []

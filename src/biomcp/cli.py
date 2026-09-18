@@ -193,6 +193,18 @@ def _client_targets(clients: list[str]) -> list[tuple[str, Path]]:
     return targets
 
 
+def _server_targets(names: list[str]) -> list[str]:
+    """Validate all requested servers before any dependency installation."""
+    for name in names:
+        try:
+            entry = get_server(name)
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
+        if not entry.get("installable"):
+            raise SystemExit(f"{name} is not installable (status: {entry.get('status')})")
+    return names
+
+
 def cmd_list(_: argparse.Namespace) -> int:
     print(f"BioMCP {__version__}\n")
     print(f"{'server':16} {'status':12} {'transport':22} description")
@@ -252,6 +264,7 @@ def cmd_install(args: argparse.Namespace) -> int:
         names = [entry["name"] for entry in installable_servers()]
     if not names:
         raise SystemExit("No installable BioMCP servers selected")
+    _server_targets(names)
     clients = [c.strip() for c in args.clients.split(",") if c.strip() and c.strip() != "none"]
     targets = _client_targets(clients)
     _install_selected(names, dry_run=args.dry_run)
