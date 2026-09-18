@@ -7,7 +7,7 @@ from .mcp_client import discover_tools
 from .registry import get_server
 
 
-def validate_server(server: str) -> dict[str, Any]:
+def validate_server(server: str, *, transport: str = "stdio") -> dict[str, Any]:
     """Compare registry-declared tools with the live MCP advertisement.
 
     The validator is intentionally read-only: it performs MCP discovery but
@@ -21,7 +21,7 @@ def validate_server(server: str) -> dict[str, Any]:
         )
 
     declared = sorted(set(entry.get("tools", [])))
-    discovered = discover_tools(server)
+    discovered = discover_tools(server, transport=transport)
     live = sorted({str(tool["name"]) for tool in discovered})
     missing = sorted(set(declared) - set(live))
     unexpected = sorted(set(live) - set(declared))
@@ -29,7 +29,8 @@ def validate_server(server: str) -> dict[str, Any]:
     return {
         "server": server,
         "status": entry.get("status"),
-        "transport": list(entry.get("transport", [])),
+        "transport": transport,
+        "declared_transports": list(entry.get("transport", [])),
         "declared_tools": declared,
         "live_tools": live,
         "missing_tools": missing,
