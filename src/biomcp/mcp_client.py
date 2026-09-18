@@ -17,7 +17,11 @@ def _server_parameters(server: str) -> StdioServerParameters:
     entry = get_server(server)
     if not entry.get("installable"):
         raise ValueError(f"{server} is not installable and cannot be launched by the BioMCP client")
-    if resolve_transport_entry(entry, client="stdio") != "stdio":
+    try:
+        transport = resolve_transport_entry(entry, client="stdio")
+    except ValueError as exc:
+        raise ValueError(f"Server {server} does not declare stdio transport support") from exc
+    if transport != "stdio":
         raise ValueError(f"Server {server} does not declare stdio transport support")
     command = entry.get("command")
     if not isinstance(command, str) or not command.strip():
