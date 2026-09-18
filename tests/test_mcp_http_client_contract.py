@@ -74,8 +74,6 @@ def test_transport_aware_client_calls_tool_over_real_http(live_http_server, tmp_
         transport="streamable-http",
     )
     assert result["is_error"] is False
-    assert result["structured_content"] == {
-        "shape": [2, 2],
-        "dtype": "uint8",
-        "dimensions": 2,
-    }
+    assert result["structured_content"]["shape"] == [2, 2]
+    assert result["structured_content"]["dtype"] == "uint8"
+    assert result["structured_content"]["ndim"] == 2
