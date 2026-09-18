@@ -351,6 +351,11 @@ def cmd_run(args: argparse.Namespace) -> int:
     entry = get_server(args.server)
     if not entry.get("installable"):
         raise SystemExit(f"{args.server} is not installable (status: {entry.get('status')})")
+    if args.verify:
+        readiness = assess_server(args.server)
+        print(json.dumps(readiness, indent=2, sort_keys=True))
+        if readiness["status"] != "ready":
+            return 1
     command = str(entry["command"])
     if shutil.which(command) is None:
         raise SystemExit(f"Command not found: {command}. Run `biomcp doctor --server {args.server}`.")
@@ -397,6 +402,7 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_doctor)
     p = sub.add_parser("run", help="launch a registered MCP server over stdio")
     p.add_argument("server")
+    p.add_argument("--verify", action="store_true", help="require a live ready assessment before launch")
     p.add_argument("extra", nargs=argparse.REMAINDER)
     p.set_defaults(func=cmd_run)
     p = sub.add_parser("config", help="inspect or edit persistent BioMCP configuration")
