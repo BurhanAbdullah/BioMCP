@@ -253,7 +253,7 @@ def cmd_list(_: argparse.Namespace) -> int:
 
 
 def cmd_tools(args: argparse.Namespace) -> int:
-    tools = discover_tools(args.server)
+    tools = discover_tools(args.server, transport=args.transport)
     print(json.dumps(tools, indent=2, sort_keys=True))
     return 0
 
@@ -295,7 +295,7 @@ def cmd_call(args: argparse.Namespace) -> int:
         print(json.dumps(readiness, indent=2, sort_keys=True))
         if readiness["status"] != "ready":
             return 1
-    result = call_tool(args.server, args.tool, arguments)
+    result = call_tool(args.server, args.tool, arguments, transport=args.transport)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 1 if result.get("is_error") else 0
 
@@ -365,6 +365,7 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_list)
     p = sub.add_parser("tools", help="discover MCP tools exposed by a registered server")
     p.add_argument("server")
+    p.add_argument("--transport", choices=("stdio", "streamable-http"), default="stdio")
     p.set_defaults(func=cmd_tools)
     p = sub.add_parser("validate", help="compare registry-declared tools with live MCP discovery")
     p.add_argument("server")
@@ -380,6 +381,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("server")
     p.add_argument("tool")
     p.add_argument("--arguments", default="{}", help="JSON object containing tool arguments")
+    p.add_argument("--transport", choices=("stdio", "streamable-http"), default="stdio")
     p.add_argument("--verify", action="store_true", help="require a live ready assessment before execution")
     p.set_defaults(func=cmd_call)
     p = sub.add_parser("install", help="install selected integration dependencies and configure MCP clients")
