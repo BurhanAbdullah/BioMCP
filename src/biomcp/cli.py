@@ -298,7 +298,7 @@ def cmd_install(args: argparse.Namespace) -> int:
     _server_targets(names)
     clients = [c.strip() for c in args.clients.split(",") if c.strip() and c.strip() != "none"]
     targets = _client_targets(clients)
-    if args.plan:
+    if getattr(args, "plan", False):
         print(json.dumps(_installation_plan(names, targets), indent=2, sort_keys=True))
         return 0
     _install_selected(names, dry_run=args.dry_run)
