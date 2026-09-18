@@ -52,4 +52,4 @@ def test_run_without_verify_preserves_existing_launch(monkeypatch):
     monkeypatch.setattr(cli.subprocess, "run", lambda argv, check=False: calls.append((argv, check)) or type("Result", (), {"returncode": 0})())
 
     assert main(["run", "imagej", "--", "--headless"]) == 0
-    assert calls == [(["imagej", "--", "--headless"], False)]
+    assert calls == [(["imagej", "--headless"], False)]
