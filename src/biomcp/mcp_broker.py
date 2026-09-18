@@ -136,7 +136,7 @@ def _redact_child_secrets(value: Any, secrets: frozenset[str]) -> Any:
     if isinstance(value, str):
         redacted = value
         for secret in secrets:
-            if len(secret) >= 8 and secret in redacted:
+            if secret:
                 redacted = redacted.replace(secret, "[REDACTED]")
         return redacted
     if isinstance(value, list):

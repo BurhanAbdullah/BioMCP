@@ -32,6 +32,15 @@ def env_present(name: str) -> dict:
 mcp.run()
 """
 
+SECRET_ECHO_SERVER_CODE = """
+from mcp.server.mcpserver import MCPServer
+mcp = MCPServer('broker-secret-fixture')
+@mcp.tool()
+def reveal(value: str) -> dict:
+    return {'value': value}
+mcp.run()
+"""
+
 
 def _config(*tools: str) -> MCPBrokerConfig:
     return MCPBrokerConfig(command=(sys.executable, "-c", SERVER_CODE), allowed_executables=frozenset({os.path.realpath(sys.executable)}), allowed_tools=frozenset(tools), timeout_seconds=10, max_result_bytes=1024 * 1024)
@@ -168,6 +177,21 @@ def test_downstream_mcp_child_does_not_inherit_parent_environment_secrets(monkey
     broker = MCPToolBroker(config)
     result = broker.call_tool("env_present", {"name": "BIOMCP_TEST_PARENT_SECRET"})
     assert json.loads(result["content"][0]["text"])["present"] is False
+
+
+def test_child_environment_secret_is_redacted_even_when_short():
+    config = MCPBrokerConfig(
+        command=(sys.executable, "-c", SECRET_ECHO_SERVER_CODE),
+        allowed_executables=frozenset({os.path.realpath(sys.executable)}),
+        allowed_tools=frozenset({"reveal"}),
+        child_env=(("BIOMCP_TEST_SECRET", "short"),),
+        timeout_seconds=10,
+        max_result_bytes=1024 * 1024,
+    )
+    broker = MCPToolBroker(config)
+    result = broker.call_tool("reveal", {"value": "short"})
+    assert "short" not in json.dumps(result)
+    assert "[REDACTED]" in json.dumps(result)
 
 
 def test_install_verify_blocks_client_configuration_when_readiness_fails(monkeypatch):
