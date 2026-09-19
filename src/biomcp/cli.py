@@ -259,7 +259,7 @@ def cmd_tools(args: argparse.Namespace) -> int:
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
-    result = validate_server(args.server)
+    result = validate_server(args.server, transport=args.transport)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["ok"] else 1
 
@@ -374,6 +374,7 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_tools)
     p = sub.add_parser("validate", help="compare registry-declared tools with live MCP discovery")
     p.add_argument("server")
+    p.add_argument("--transport", choices=("stdio", "streamable-http"), default=None, help="require this transport; default resolves the registry declaration")
     p.set_defaults(func=cmd_validate)
     p = sub.add_parser("assess", help="make a read-only readiness decision from registry and live MCP evidence")
     p.add_argument("server", nargs="?", help="registered server id; omit when using --all")

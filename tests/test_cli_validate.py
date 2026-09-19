@@ -6,7 +6,7 @@ def test_validate_command_returns_failure_for_contract_mismatch(monkeypatch, cap
     monkeypatch.setattr(
         cli,
         "validate_server",
-        lambda _: {
+        lambda _, transport=None: {
             "server": "bioimage",
             "status": "experimental",
             "transport": ["stdio"],
@@ -26,7 +26,7 @@ def test_validate_command_returns_success_for_matching_contract(monkeypatch, cap
     monkeypatch.setattr(
         cli,
         "validate_server",
-        lambda _: {
+        lambda _, transport=None: {
             "server": "bioimage",
             "status": "experimental",
             "transport": ["stdio"],
@@ -40,3 +40,19 @@ def test_validate_command_returns_success_for_matching_contract(monkeypatch, cap
 
     assert main(["validate", "bioimage"]) == 0
     assert '"ok": true' in capsys.readouterr().out
+
+
+def test_validate_command_forwards_explicit_transport(monkeypatch, capsys):
+    seen = {}
+
+    def fake_validate(server, *, transport=None):
+        seen.update(server=server, transport=transport)
+        return {"server": server, "transport": ["streamable-http"], "ok": True}
+
+    monkeypatch.setattr(cli, "validate_server", fake_validate)
+
+    assert main(["validate", "bioimage", "--transport", "streamable-http"]) == 0
+    assert seen == {"server": "bioimage", "transport": "streamable-http"}
+    output = capsys.readouterr().out
+    assert '"transport": [' in output
+    assert '"streamable-http"' in output
