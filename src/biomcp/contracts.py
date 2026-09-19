@@ -8,14 +8,14 @@ from .registry import get_server
 from .transport import resolve_transport_entry
 
 
-def validate_server(server: str, *, transport: str = "stdio") -> dict[str, Any]:
+def validate_server(server: str, *, transport: str | None = None) -> dict[str, Any]:
     """Compare registry-declared tools with the live MCP advertisement.
 
     The validator is intentionally read-only: it performs MCP discovery but
     never executes a scientific tool. A mismatch is reported as a failed
     contract so registry drift cannot be mistaken for a valid integration.
-    The requested transport must also be declared by the authoritative
-    registry entry before live discovery is attempted.
+    When no transport is requested, the validator resolves the single
+    registry-declared transport instead of assuming stdio.
     """
     entry = get_server(server)
     if not entry.get("installable"):
@@ -24,12 +24,16 @@ def validate_server(server: str, *, transport: str = "stdio") -> dict[str, Any]:
         )
 
     declared = sorted(set(entry.get("tools", [])))
+    requested = transport
     try:
-        resolved = resolve_transport_entry(entry, client=transport if transport == "stdio" else "http")
+        resolved = resolve_transport_entry(entry, client="default" if requested is None else ("stdio" if requested == "stdio" else "http"))
     except ValueError as exc:
-        raise ValueError(f"Server {server} cannot be validated over {transport}: {exc}") from exc
-    if resolved != transport:
-        raise ValueError(f"Server {server} resolved transport {resolved}, not requested {transport}")
+        if requested is None:
+            raise ValueError(f"Server {server} cannot be validated using its registry transport: {exc}") from exc
+        raise ValueError(f"Server {server} cannot be validated over {requested}: {exc}") from exc
+    if requested is not None and resolved != requested:
+        raise ValueError(f"Server {server} resolved transport {resolved}, not requested {requested}")
+    transport = resolved
 
     discovered = discover_tools(server, transport=transport)
     live = sorted({str(tool["name"]) for tool in discovered})
