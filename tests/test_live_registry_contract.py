@@ -47,6 +47,32 @@ def test_validate_server_forwards_declared_stdio_transport(monkeypatch: pytest.M
     assert result["ok"] is True
 
 
+def test_validate_server_resolves_registry_transport_when_unspecified(monkeypatch: pytest.MonkeyPatch) -> None:
+    entry = {
+        "name": "http-demo",
+        "installable": True,
+        "status": "experimental",
+        "transport": ["streamable-http"],
+        "tools": ["ping"],
+    }
+    seen = {}
+
+    monkeypatch.setattr(contracts, "get_server", lambda _: entry)
+
+    def fake_discover(server: str, *, transport: str = "stdio"):
+        seen.update(server=server, transport=transport)
+        return [{"name": "ping"}]
+
+    monkeypatch.setattr(contracts, "discover_tools", fake_discover)
+
+    result = contracts.validate_server("http-demo")
+
+    assert seen == {"server": "http-demo", "transport": "streamable-http"}
+    assert result["transport"] == "streamable-http"
+    assert result["declared_transports"] == ["streamable-http"]
+    assert result["ok"] is True
+
+
 def test_validate_server_rejects_undeclared_transport_before_discovery(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
