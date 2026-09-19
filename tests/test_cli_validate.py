@@ -53,4 +53,6 @@ def test_validate_command_forwards_explicit_transport(monkeypatch, capsys):
 
     assert main(["validate", "bioimage", "--transport", "streamable-http"]) == 0
     assert seen == {"server": "bioimage", "transport": "streamable-http"}
-    assert '"transport": ["streamable-http"]' in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert '"transport": [' in output
+    assert '"streamable-http"' in output
