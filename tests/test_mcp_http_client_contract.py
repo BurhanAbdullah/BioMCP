@@ -61,6 +61,15 @@ def test_transport_aware_client_discovers_tools_over_real_http(live_http_server)
     ]
 
 
+def test_registry_default_client_discovers_tools_over_real_http(live_http_server):
+    tools = mcp_client.discover_tools("fixture-http")
+    assert [tool["name"] for tool in tools] == [
+        "inspect_image",
+        "intensity_summary",
+        "threshold_image",
+    ]
+
+
 def test_transport_aware_client_calls_tool_over_real_http(live_http_server, tmp_path):
     import numpy as np
     import tifffile
@@ -72,6 +81,23 @@ def test_transport_aware_client_calls_tool_over_real_http(live_http_server, tmp_
         "inspect_image",
         {"path": str(image)},
         transport="streamable-http",
+    )
+    assert result["is_error"] is False
+    assert result["structured_content"]["shape"] == [2, 2]
+    assert result["structured_content"]["dtype"] == "uint8"
+    assert result["structured_content"]["ndim"] == 2
+
+
+def test_registry_default_client_calls_tool_over_real_http(live_http_server, tmp_path):
+    import numpy as np
+    import tifffile
+
+    image = tmp_path / "http-default-contract.tif"
+    tifffile.imwrite(image, np.array([[0, 1], [2, 3]], dtype=np.uint8))
+    result = mcp_client.call_tool(
+        "fixture-http",
+        "inspect_image",
+        {"path": str(image)},
     )
     assert result["is_error"] is False
     assert result["structured_content"]["shape"] == [2, 2]
