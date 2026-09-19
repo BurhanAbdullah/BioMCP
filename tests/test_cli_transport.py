@@ -18,6 +18,20 @@ def test_tools_command_passes_selected_transport(monkeypatch, capsys):
     assert json.loads(capsys.readouterr().out)[0]["name"] == "inspect_image"
 
 
+def test_tools_command_defaults_to_registry_transport(monkeypatch, capsys):
+    seen = {}
+
+    def fake_discover(server, *, transport=None):
+        seen.update(server=server, transport=transport)
+        return [{"name": "inspect_image"}]
+
+    monkeypatch.setattr(cli, "discover_tools", fake_discover)
+
+    assert main(["tools", "fixture-http"]) == 0
+    assert seen == {"server": "fixture-http", "transport": None}
+    assert json.loads(capsys.readouterr().out)[0]["name"] == "inspect_image"
+
+
 def test_call_command_passes_selected_transport(monkeypatch, capsys):
     seen = {}
 
@@ -68,5 +82,5 @@ def test_transport_defaults_to_stdio(monkeypatch):
         lambda server, *, transport="stdio": seen.update(server=server, transport=transport) or [],
     )
 
-    assert main(["tools", "bioimage"]) == 0
+    assert main(["tools", "bioimage", "--transport", "stdio"]) == 0
     assert seen == {"server": "bioimage", "transport": "stdio"}
