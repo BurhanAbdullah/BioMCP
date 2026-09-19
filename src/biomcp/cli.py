@@ -228,6 +228,9 @@ def _installation_plan(names: list[str], targets: list[tuple[str, Path]]) -> dic
         servers.append({
             "name": name,
             "status": entry["status"],
+            "transport": resolve_transport_entry(entry, client="default"),
+            "endpoint": entry.get("endpoint"),
+            "distribution": entry.get("distribution", "biomcp"),
             "package_extra": entry.get("package_extra"),
             "missing_dependencies": _missing_dependencies(entry),
             "command": entry["command"],
