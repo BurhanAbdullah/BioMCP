@@ -222,31 +222,32 @@ def _server_targets(names: list[str]) -> list[str]:
 
 
 def _installation_plan(names: list[str], targets: list[tuple[str, Path]]) -> dict[str, Any]:
-    """Build a deterministic, side-effect-free installer plan from registry truth."""
     servers: list[dict[str, Any]] = []
     for name in names:
         entry = get_server(name)
-        servers.append({
-            "name": name,
-            "status": entry["status"],
-            "transport": resolve_transport_entry(entry, client="default"),
-            "endpoint": entry.get("endpoint"),
-            "distribution": entry.get("distribution", "biomcp"),
-            "package_extra": entry.get("package_extra"),
-            "missing_dependencies": _missing_dependencies(entry),
-            "command": entry["command"],
-            "args": list(entry.get("args", [])),
-        })
+        missing = _missing_dependencies(entry)
+        transport = resolve_transport_entry(entry, client="default")
+        config = _server_configs([name])
+        servers.append(
+            {
+                "name": name,
+                "status": entry.get("status"),
+                "transport": transport,
+                "endpoint": entry.get("endpoint"),
+                "distribution": entry.get("distribution", "biomcp"),
+                "package_extra": entry.get("package_extra"),
+                "missing_dependencies": missing,
+                "client_config": config[f"biomcp_{name}"],
+            }
+        )
     return {
-        "product": load_registry()["product"],
         "servers": servers,
         "clients": [{"name": client, "path": str(path)} for client, path in targets],
-        "configuration": _server_configs(names),
+        "side_effects": False,
     }
 
 
-def cmd_list(_: argparse.Namespace) -> int:
-    print(f"BioMCP {__version__}\n")
+def cmd_list(args: argparse.Namespace) -> int:
     print(f"{'server':16} {'status':12} {'transport':22} description")
     print("-" * 100)
     for entry in load_registry()["servers"]:
@@ -386,7 +387,7 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_catalog)
     p = sub.add_parser("tools", help="discover MCP tools exposed by a registered server")
     p.add_argument("server")
-    p.add_argument("--transport", choices=("stdio", "streamable-http"), default="stdio")
+    p.add_argument("--transport", choices=("stdio", "streamable-http"), default=None, help="select a transport; default resolves the registry declaration")
     p.set_defaults(func=cmd_tools)
     p = sub.add_parser("validate", help="compare registry-declared tools with live MCP discovery")
     p.add_argument("server")
