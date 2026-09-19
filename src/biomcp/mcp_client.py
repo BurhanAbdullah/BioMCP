@@ -47,11 +47,14 @@ def _http_endpoint(server: str, entry: dict[str, Any]) -> str:
     return endpoint.strip()
 
 
-def _client(server: str, entry: dict[str, Any], *, transport: str = "stdio"):
-    """Construct the MCP client for an explicitly selected registry transport."""
-    if transport not in {"stdio", "streamable-http"}:
+def _client(server: str, entry: dict[str, Any], *, transport: str | None = None):
+    """Construct the MCP client using an explicit or registry-resolved transport."""
+    if transport is not None and transport not in {"stdio", "streamable-http"}:
         raise ValueError(f"Unsupported MCP client transport: {transport}")
-    resolved = resolve_transport_entry(entry, client=transport if transport == "stdio" else "http")
+    resolved = resolve_transport_entry(
+        entry,
+        client=(transport if transport == "stdio" else "http") if transport is not None else "default",
+    )
     if resolved == "stdio":
         return Client(_server_parameters(server))
     if resolved == "streamable-http":
@@ -88,7 +91,7 @@ def _validate_tool_arguments(tool: Any, arguments: dict[str, Any]) -> None:
         raise ValueError(f"invalid arguments for tool {tool.name!r} at {path}: {error.message}")
 
 
-async def _discover_tools(server: str, *, transport: str = "stdio") -> list[dict[str, Any]]:
+async def _discover_tools(server: str, *, transport: str | None = None) -> list[dict[str, Any]]:
     entry = get_server(server)
     if not entry.get("installable") and not entry.get("external"):
         raise ValueError(f"{server} is not installable or external")
@@ -104,7 +107,7 @@ async def _discover_tools(server: str, *, transport: str = "stdio") -> list[dict
         ]
 
 
-async def _call_tool(server: str, tool: str, arguments: dict[str, Any], *, transport: str = "stdio") -> dict[str, Any]:
+async def _call_tool(server: str, tool: str, arguments: dict[str, Any], *, transport: str | None = None) -> dict[str, Any]:
     _declared_tool(server, tool)
     entry = get_server(server)
     async with _client(server, entry, transport=transport) as client:
@@ -121,7 +124,7 @@ async def _call_tool(server: str, tool: str, arguments: dict[str, Any], *, trans
         return response
 
 
-def discover_tools(server: str, *, transport: str = "stdio") -> list[dict[str, Any]]:
+def discover_tools(server: str, *, transport: str | None = None) -> list[dict[str, Any]]:
     return asyncio.run(_discover_tools(server, transport=transport))
 
 
@@ -130,7 +133,7 @@ def call_tool(
     tool: str,
     arguments: dict[str, Any] | None = None,
     *,
-    transport: str = "stdio",
+    transport: str | None = None,
 ) -> dict[str, Any]:
     if arguments is None:
         arguments = {}

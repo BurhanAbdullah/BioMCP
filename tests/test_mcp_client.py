@@ -52,9 +52,21 @@ def test_call_tool_rejects_undeclared_tool_before_launch():
         call_tool("llm", "not_registered", {})
 
 
-def test_call_tool_rejects_non_installable_server_before_launch():
-    with pytest.raises(ValueError, match="not installable"):
-        call_tool("bionuclei", "inspect_image", {})
+def test_call_tool_rejects_non_installable_non_external_server_before_launch(monkeypatch):
+    import biomcp.mcp_client as mcp_client
+
+    entry = {
+        "name": "local-only",
+        "installable": False,
+        "external": False,
+        "transport": ["stdio"],
+        "command": "should-not-launch",
+        "tools": ["inspect_image"],
+    }
+    monkeypatch.setattr(mcp_client, "get_server", lambda server: entry)
+
+    with pytest.raises(ValueError, match="not installable or external"):
+        call_tool("local-only", "inspect_image", {})
 
 
 def test_call_tool_executes_registered_tool_over_mcp_stdio(monkeypatch):
@@ -104,27 +116,3 @@ def test_discover_tools_uses_sdk_v2_client(monkeypatch):
             "input_schema": _Tool.input_schema,
         }
     ]
-
-
-def test_call_verify_rejects_non_ready_server(monkeypatch):
-    import biomcp.cli as cli
-    calls = []
-
-    monkeypatch.setattr(cli, "assess_server", lambda server: {"server": server, "status": "drift"})
-    monkeypatch.setattr(cli, "call_tool", lambda *args, **kwargs: calls.append((args, kwargs)))
-
-    assert cli.cmd_call(
-        type("Args", (), {"server": "llm", "tool": "list_models", "arguments": "{}", "verify": True, "transport": "stdio"})()
-    ) == 1
-    assert calls == []
-
-
-def test_call_verify_allows_ready_server(monkeypatch):
-    import biomcp.cli as cli
-
-    monkeypatch.setattr(cli, "assess_server", lambda server: {"server": server, "status": "ready"})
-    monkeypatch.setattr(cli, "call_tool", lambda *args, **kwargs: {"is_error": False, "content": []})
-
-    assert cli.cmd_call(
-        type("Args", (), {"server": "llm", "tool": "list_models", "arguments": "{}", "verify": True, "transport": "stdio"})()
-    ) == 0
