@@ -41,6 +41,25 @@ def test_call_command_passes_selected_transport(monkeypatch, capsys):
     assert json.loads(capsys.readouterr().out)["structured_content"]["ok"] is True
 
 
+def test_call_command_defaults_to_registry_transport(monkeypatch, capsys):
+    seen = {}
+
+    def fake_call(server, tool, arguments, *, transport=None):
+        seen.update(server=server, tool=tool, arguments=arguments, transport=transport)
+        return {"is_error": False}
+
+    monkeypatch.setattr(cli, "call_tool", fake_call)
+
+    assert main(["call", "fixture-http", "inspect_image"]) == 0
+    assert seen == {
+        "server": "fixture-http",
+        "tool": "inspect_image",
+        "arguments": {},
+        "transport": None,
+    }
+    assert json.loads(capsys.readouterr().out)["is_error"] is False
+
+
 def test_transport_defaults_to_stdio(monkeypatch):
     seen = {}
     monkeypatch.setattr(

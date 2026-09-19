@@ -403,7 +403,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("server")
     p.add_argument("tool")
     p.add_argument("--arguments", default="{}", help="JSON object containing tool arguments")
-    p.add_argument("--transport", choices=("stdio", "streamable-http"), default="stdio")
+    p.add_argument("--transport", choices=("stdio", "streamable-http"), default=None, help="select a transport; default resolves the registry declaration")
     p.add_argument("--verify", action="store_true", help="require a live ready assessment before execution")
     p.set_defaults(func=cmd_call)
     p = sub.add_parser("install", help="install selected integration dependencies and configure MCP clients")
