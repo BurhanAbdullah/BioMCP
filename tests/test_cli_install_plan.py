@@ -31,3 +31,31 @@ def test_install_plan_rejects_non_installable_before_output(monkeypatch):
         assert str(exc) == "pymol is not installable (status: planned)"
     else:
         raise AssertionError("expected SystemExit")
+
+
+def test_install_plan_preserves_registry_http_configuration(monkeypatch, capsys, tmp_path):
+    entry = {
+        "name": "http-fixture",
+        "status": "experimental",
+        "installable": True,
+        "transport": ["streamable-http"],
+        "endpoint": "https://example.invalid/mcp",
+        "distribution": "biomcp",
+        "package_extra": "bioimage",
+        "command": "unused-for-http",
+        "args": [],
+    }
+    monkeypatch.setattr(cli.Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.setattr(cli, "get_server", lambda name: entry if name == "http-fixture" else (_ for _ in ()).throw(ValueError(name)))
+    monkeypatch.setattr(cli, "_missing_dependencies", lambda _: [])
+
+    assert main(["install", "--servers", "http-fixture", "--clients", "generic,codex", "--plan"]) == 0
+    result = json.loads(capsys.readouterr().out)
+
+    assert result["servers"][0]["transport"] == "streamable-http"
+    assert result["servers"][0]["endpoint"] == "https://example.invalid/mcp"
+    assert result["configuration"] == {
+        "biomcp_http-fixture": {"url": "https://example.invalid/mcp"}
+    }
+    assert not list(tmp_path.rglob("mcp.json"))
+    assert not list(tmp_path.rglob("config.toml"))
