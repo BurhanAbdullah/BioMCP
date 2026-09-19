@@ -19,6 +19,7 @@ from typing import Any
 
 from . import __version__
 from .assess import assess_server
+from .catalog import catalog
 from .config import show as show_config, set_value
 from .contracts import validate_server
 from .doctor import diagnose
@@ -255,6 +256,15 @@ def cmd_list(_: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_catalog(args: argparse.Namespace) -> int:
+    try:
+        result = catalog(args.server)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
 def cmd_tools(args: argparse.Namespace) -> int:
     tools = discover_tools(args.server, transport=args.transport)
     print(json.dumps(tools, indent=2, sort_keys=True))
@@ -371,6 +381,9 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     p = sub.add_parser("list", help="list registered servers, transports and lifecycle state")
     p.set_defaults(func=cmd_list)
+    p = sub.add_parser("catalog", help="emit the registry-authoritative server discovery catalog")
+    p.add_argument("server", nargs="?", help="registered server id; omit to show the full catalog")
+    p.set_defaults(func=cmd_catalog)
     p = sub.add_parser("tools", help="discover MCP tools exposed by a registered server")
     p.add_argument("server")
     p.add_argument("--transport", choices=("stdio", "streamable-http"), default="stdio")
