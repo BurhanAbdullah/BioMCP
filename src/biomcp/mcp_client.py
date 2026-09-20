@@ -110,6 +110,10 @@ async def _discover_tools(server: str, *, transport: str | None = None) -> list[
 async def _call_tool(server: str, tool: str, arguments: dict[str, Any], *, transport: str | None = None) -> dict[str, Any]:
     _declared_tool(server, tool)
     entry = get_server(server)
+    resolved_transport = resolve_transport_entry(
+        entry,
+        client=(transport if transport == "stdio" else "http") if transport is not None else "default",
+    )
     async with _client(server, entry, transport=transport) as client:
         listed = await client.list_tools()
         live_tool = next((item for item in listed.tools if item.name == tool), None)
@@ -117,7 +121,15 @@ async def _call_tool(server: str, tool: str, arguments: dict[str, Any], *, trans
             raise ValueError(f"Tool {tool!r} is not advertised by registered server {server!r}")
         _validate_tool_arguments(live_tool, arguments)
         result = await client.call_tool(tool, arguments)
-        response: dict[str, Any] = {"is_error": bool(result.is_error)}
+        response: dict[str, Any] = {
+            "is_error": bool(result.is_error),
+            "provenance": {
+                "server": server,
+                "tool": tool,
+                "transport": resolved_transport,
+                "registry_status": entry["status"],
+            },
+        }
         if result.structured_content is not None:
             response["structured_content"] = result.structured_content
         response["content"] = [item.model_dump(mode="json") for item in result.content]
