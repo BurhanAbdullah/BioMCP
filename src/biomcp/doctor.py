@@ -41,6 +41,7 @@ def diagnose(name: str | None = None) -> list[dict[str, object]]:
         results.append(
             {
                 "name": entry["name"],
+                "lifecycle_status": entry["status"],
                 "command": command,
                 "command_path": command_path,
                 "missing_dependencies": missing_dependencies,
@@ -56,7 +57,8 @@ def run_doctor(name: str | None = None) -> int:
     for result in diagnose(name):
         ok = bool(result["ok"])
         status = "OK" if ok else "MISSING"
-        detail = str(result["command"])
+        lifecycle = str(result["lifecycle_status"])
+        detail = f"{result['command']} | lifecycle: {lifecycle}"
         missing = list(result["missing_dependencies"])
         config = list(result["missing_configuration"])
         if missing:
