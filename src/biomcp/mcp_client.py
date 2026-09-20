@@ -9,7 +9,8 @@ from typing import Any
 from jsonschema import Draft202012Validator, SchemaError
 from mcp import Client, StdioServerParameters
 
-from .registry import get_server
+from .provenance import registry_provenance
+from .registry import get_server, load_registry
 from .transport import resolve_transport_entry
 
 
@@ -107,6 +108,23 @@ async def _discover_tools(server: str, *, transport: str | None = None) -> list[
         ]
 
 
+async def _discovery_snapshot(server: str, *, transport: str | None = None) -> dict[str, Any]:
+    """Return live MCP discovery together with registry and transport provenance."""
+    entry = get_server(server)
+    resolved_transport = resolve_transport_entry(
+        entry,
+        client=(transport if transport == "stdio" else "http") if transport is not None else "default",
+    )
+    tools = await _discover_tools(server, transport=transport)
+    return {
+        "server": server,
+        "transport": resolved_transport,
+        "registry_status": entry["status"],
+        "registry_provenance": registry_provenance(load_registry()),
+        "tools": tools,
+    }
+
+
 async def _call_tool(server: str, tool: str, arguments: dict[str, Any], *, transport: str | None = None) -> dict[str, Any]:
     _declared_tool(server, tool)
     entry = get_server(server)
@@ -138,6 +156,11 @@ async def _call_tool(server: str, tool: str, arguments: dict[str, Any], *, trans
 
 def discover_tools(server: str, *, transport: str | None = None) -> list[dict[str, Any]]:
     return asyncio.run(_discover_tools(server, transport=transport))
+
+
+def discovery_snapshot(server: str, *, transport: str | None = None) -> dict[str, Any]:
+    """Return live discovery plus deterministic registry/transport provenance."""
+    return asyncio.run(_discovery_snapshot(server, transport=transport))
 
 
 def call_tool(
