@@ -1,6 +1,12 @@
 import pytest
 
-from biomcp.mcp_client import _validate_tool_arguments, call_tool, discover_tools, json_arguments
+from biomcp.mcp_client import (
+    _validate_tool_arguments,
+    call_tool,
+    discover_tools,
+    discovery_snapshot,
+    json_arguments,
+)
 
 
 class _Tool:
@@ -45,6 +51,47 @@ def test_discover_tools_uses_live_mcp_protocol():
         "mcp_call_tool",
     ]
     assert all("input_schema" in tool for tool in tools)
+
+
+def test_discovery_snapshot_preserves_registry_and_transport_provenance(monkeypatch):
+    import biomcp.mcp_client as mcp_client
+
+    entry = {
+        "name": "sample",
+        "installable": True,
+        "external": False,
+        "status": "verified",
+        "transport": ["stdio"],
+        "command": "sample-server",
+        "tools": ["sample"],
+    }
+
+    async def fake_discover(server, *, transport=None):
+        assert server == "sample"
+        assert transport is None
+        return [{"name": "sample", "description": None, "input_schema": _Tool.input_schema}]
+
+    monkeypatch.setattr(mcp_client, "get_server", lambda server: entry)
+    monkeypatch.setattr(mcp_client, "_discover_tools", fake_discover)
+    monkeypatch.setattr(mcp_client, "load_registry", lambda: {"schema_version": "test", "servers": [entry]})
+    monkeypatch.setattr(
+        mcp_client,
+        "registry_provenance",
+        lambda registry: {"source": "canonical_registry", "schema_version": registry["schema_version"], "sha256": "a" * 64, "server_count": 1},
+    )
+
+    assert discovery_snapshot("sample") == {
+        "server": "sample",
+        "transport": "stdio",
+        "registry_status": "verified",
+        "registry_provenance": {
+            "source": "canonical_registry",
+            "schema_version": "test",
+            "sha256": "a" * 64,
+            "server_count": 1,
+        },
+        "tools": [{"name": "sample", "description": None, "input_schema": _Tool.input_schema}],
+    }
 
 
 def test_call_tool_rejects_undeclared_tool_before_launch():
