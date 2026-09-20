@@ -7,7 +7,6 @@ import pytest
 from mcp import Client, StdioServerParameters
 
 
-@pytest.mark.asyncio
 async def _run_stdio_contract(tmp_path):
     np = pytest.importorskip("numpy")
     tifffile = pytest.importorskip("tifffile")
