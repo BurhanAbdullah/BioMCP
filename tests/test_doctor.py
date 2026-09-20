@@ -5,6 +5,7 @@ def test_diagnose_marks_missing_configuration_as_not_ok(monkeypatch):
     monkeypatch.setattr(doctor, "installable_servers", lambda: [{
         "name": "demo",
         "command": "demo-command",
+        "status": "beta",
         "dependencies": [],
         "config": ["DEMO_API_KEY"],
         "installable": True,
@@ -16,6 +17,7 @@ def test_diagnose_marks_missing_configuration_as_not_ok(monkeypatch):
 
     assert result == [{
         "name": "demo",
+        "lifecycle_status": "beta",
         "command": "demo-command",
         "command_path": "/usr/bin/demo-command",
         "missing_dependencies": [],
@@ -28,6 +30,7 @@ def test_diagnose_is_ok_when_configuration_is_present(monkeypatch):
     monkeypatch.setattr(doctor, "installable_servers", lambda: [{
         "name": "demo",
         "command": "demo-command",
+        "status": "beta",
         "dependencies": [],
         "config": ["DEMO_API_KEY"],
         "installable": True,
@@ -37,5 +40,6 @@ def test_diagnose_is_ok_when_configuration_is_present(monkeypatch):
 
     result = doctor.diagnose()
 
+    assert result[0]["lifecycle_status"] == "beta"
     assert result[0]["missing_configuration"] == []
     assert result[0]["ok"] is True
