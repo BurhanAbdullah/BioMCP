@@ -38,6 +38,7 @@ def live_http_server(monkeypatch: pytest.MonkeyPatch):
 
     entry = {
         "name": "fixture-http",
+        "status": "validated",
         "external": True,
         "installable": False,
         "transport": ["streamable-http"],
@@ -83,6 +84,12 @@ def test_transport_aware_client_calls_tool_over_real_http(live_http_server, tmp_
         transport="streamable-http",
     )
     assert result["is_error"] is False
+    assert result["provenance"] == {
+        "server": "fixture-http",
+        "tool": "inspect_image",
+        "transport": "streamable-http",
+        "registry_status": "validated",
+    }
     assert result["structured_content"]["shape"] == [2, 2]
     assert result["structured_content"]["dtype"] == "uint8"
     assert result["structured_content"]["ndim"] == 2
@@ -100,6 +107,10 @@ def test_registry_default_client_calls_tool_over_real_http(live_http_server, tmp
         {"path": str(image)},
     )
     assert result["is_error"] is False
+    assert result["provenance"]["server"] == "fixture-http"
+    assert result["provenance"]["tool"] == "inspect_image"
+    assert result["provenance"]["transport"] == "streamable-http"
+    assert result["provenance"]["registry_status"] == "validated"
     assert result["structured_content"]["shape"] == [2, 2]
     assert result["structured_content"]["dtype"] == "uint8"
     assert result["structured_content"]["ndim"] == 2
