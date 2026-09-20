@@ -5,6 +5,7 @@ import argparse
 import json
 from pathlib import Path
 
+from .provenance import registry_provenance
 from .registry import load_registry
 
 
@@ -28,13 +29,24 @@ def validate_registries() -> dict[str, object]:
     }
 
 
+def registry_provenance_summary() -> dict[str, object]:
+    """Return deterministic provenance for the canonical registry used by the CLI."""
+    repository_path = Path(__file__).resolve().parents[2] / "biomcp" / "registry.json"
+    registry = load_registry(repository_path)
+    return registry_provenance(registry)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="biomcp-registry", description="Validate BioMCP registry truth")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("validate", help="validate lifecycle metadata and repository/package registry consistency")
+    sub.add_parser("provenance", help="emit deterministic provenance for the canonical registry")
     args = parser.parse_args(argv)
     if args.command == "validate":
         print(json.dumps(validate_registries(), indent=2, sort_keys=True))
+        return 0
+    if args.command == "provenance":
+        print(json.dumps(registry_provenance_summary(), indent=2, sort_keys=True))
         return 0
     return 2
 
