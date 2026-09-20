@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .provenance import registry_provenance
 from .registry import load_registry
 
 
@@ -43,4 +44,5 @@ def catalog(server: str | None = None) -> dict[str, Any]:
         "schema_version": registry["schema_version"],
         "server_count": len(servers),
         "servers": servers,
+        "provenance": registry_provenance(registry),
     }
