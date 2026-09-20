@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import sys
 
+import anyio
 import pytest
 from mcp import Client, StdioServerParameters
 
 
 @pytest.mark.asyncio
-async def test_real_stdio_client_discovers_and_calls_bioimage_tool(tmp_path):
+async def _run_stdio_contract(tmp_path):
     np = pytest.importorskip("numpy")
     tifffile = pytest.importorskip("tifffile")
 
@@ -36,3 +37,7 @@ async def test_real_stdio_client_discovers_and_calls_bioimage_tool(tmp_path):
         assert result.structured_content["shape"] == [2, 2]
         assert result.structured_content["dtype"] == "uint8"
         assert result.structured_content["ndim"] == 2
+
+
+def test_real_stdio_client_discovers_and_calls_bioimage_tool(tmp_path):
+    anyio.run(_run_stdio_contract, tmp_path)
