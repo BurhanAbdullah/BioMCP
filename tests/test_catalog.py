@@ -39,7 +39,9 @@ def test_catalog_can_filter_one_registered_server():
 
     assert result["server_count"] == 1
     assert result["servers"][0]["name"] == "imagej"
-    assert result["provenance"]["server_count"] == len(result["servers"])
+    assert result["provenance"]["server_count"] == len(
+        catalog()["servers"]
+    )
 
 
 def test_catalog_rejects_unknown_server():
