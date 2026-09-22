@@ -61,7 +61,7 @@
       "installable": false,
       "external": true,
       "command": "bionuclei-mcp",
-      "transport": ["stdio", "streamable-http"],
+      "transport": ["stdio"],
       "description": "Independent validated scientific MCP server for nuclear instance segmentation and derived measurements.",
       "tools": ["inspect_image", "predict_image", "evaluate_image", "compute_instance_metrics", "read_provenance", "load_result_summary"]
     },
