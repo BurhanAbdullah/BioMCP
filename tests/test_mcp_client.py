@@ -94,6 +94,42 @@ def test_discovery_snapshot_preserves_registry_and_transport_provenance(monkeypa
     }
 
 
+def test_deprecated_server_is_blocked_before_discovery(monkeypatch):
+    import biomcp.mcp_client as mcp_client
+
+    entry = {
+        "name": "retired",
+        "installable": True,
+        "external": False,
+        "status": "deprecated",
+        "transport": ["stdio"],
+        "command": "must-not-launch",
+        "tools": ["sample"],
+    }
+    monkeypatch.setattr(mcp_client, "get_server", lambda server: entry)
+
+    with pytest.raises(ValueError, match="deprecated and cannot be launched or called"):
+        discover_tools("retired")
+
+
+def test_deprecated_server_is_blocked_before_tool_call(monkeypatch):
+    import biomcp.mcp_client as mcp_client
+
+    entry = {
+        "name": "retired",
+        "installable": True,
+        "external": False,
+        "status": "deprecated",
+        "transport": ["stdio"],
+        "command": "must-not-launch",
+        "tools": ["sample"],
+    }
+    monkeypatch.setattr(mcp_client, "get_server", lambda server: entry)
+
+    with pytest.raises(ValueError, match="deprecated and cannot be launched or called"):
+        call_tool("retired", "sample", {})
+
+
 def test_call_tool_rejects_undeclared_tool_before_launch():
     with pytest.raises(ValueError, match="not declared"):
         call_tool("llm", "not_registered", {})

@@ -14,8 +14,17 @@ from .registry import get_server, load_registry
 from .transport import resolve_transport_entry
 
 
+def _assert_executable_lifecycle(entry: dict[str, Any]) -> None:
+    """Enforce the registry lifecycle state at the execution boundary."""
+    status = entry.get("status")
+    if status == "deprecated":
+        server = entry.get("name", "<unknown>")
+        raise ValueError(f"Server {server} is deprecated and cannot be launched or called")
+
+
 def _server_parameters(server: str) -> StdioServerParameters:
     entry = get_server(server)
+    _assert_executable_lifecycle(entry)
     if not entry.get("installable"):
         raise ValueError(f"{server} is not installable and cannot be launched by the BioMCP client")
     try:
@@ -50,6 +59,7 @@ def _http_endpoint(server: str, entry: dict[str, Any]) -> str:
 
 def _client(server: str, entry: dict[str, Any], *, transport: str | None = None):
     """Construct the MCP client using an explicit or registry-resolved transport."""
+    _assert_executable_lifecycle(entry)
     if transport is not None and transport not in {"stdio", "streamable-http"}:
         raise ValueError(f"Unsupported MCP client transport: {transport}")
     resolved = resolve_transport_entry(
@@ -65,6 +75,7 @@ def _client(server: str, entry: dict[str, Any], *, transport: str | None = None)
 
 def _declared_tool(server: str, tool: str) -> None:
     entry = get_server(server)
+    _assert_executable_lifecycle(entry)
     declared = entry.get("tools", [])
     if tool not in declared:
         raise ValueError(f"Tool {tool!r} is not declared for registered server {server!r}")
@@ -94,6 +105,7 @@ def _validate_tool_arguments(tool: Any, arguments: dict[str, Any]) -> None:
 
 async def _discover_tools(server: str, *, transport: str | None = None) -> list[dict[str, Any]]:
     entry = get_server(server)
+    _assert_executable_lifecycle(entry)
     if not entry.get("installable") and not entry.get("external"):
         raise ValueError(f"{server} is not installable or external")
     async with _client(server, entry, transport=transport) as client:
@@ -111,6 +123,7 @@ async def _discover_tools(server: str, *, transport: str | None = None) -> list[
 async def _discovery_snapshot(server: str, *, transport: str | None = None) -> dict[str, Any]:
     """Return live MCP discovery together with registry and transport provenance."""
     entry = get_server(server)
+    _assert_executable_lifecycle(entry)
     resolved_transport = resolve_transport_entry(
         entry,
         client=(transport if transport == "stdio" else "http") if transport is not None else "default",
@@ -128,6 +141,7 @@ async def _discovery_snapshot(server: str, *, transport: str | None = None) -> d
 async def _call_tool(server: str, tool: str, arguments: dict[str, Any], *, transport: str | None = None) -> dict[str, Any]:
     _declared_tool(server, tool)
     entry = get_server(server)
+    _assert_executable_lifecycle(entry)
     resolved_transport = resolve_transport_entry(
         entry,
         client=(transport if transport == "stdio" else "http") if transport is not None else "default",
