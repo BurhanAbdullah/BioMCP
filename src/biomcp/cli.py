@@ -43,13 +43,10 @@ def _client_paths(*, platform: str | None = None, os_name: str | None = None, ho
     else:
         claude = home / ".config" / "Claude" / "claude_desktop_config.json"
     config_root = os.environ.get("XDG_CONFIG_HOME")
-    if config_root:
-        generic = path_cls(config_root) / "biomcp" / "mcp.json"
-    else:
-        generic = home / ".config" / "biomcp" / "mcp.json"
+    generic_root = path_cls(config_root) if config_root else home / ".config"
     return {
+        "generic": generic_root / "biomcp" / "mcp.json",
         "claude-desktop": claude,
-        "generic": generic,
     }
 
 
@@ -440,19 +437,28 @@ def main(argv: list[str] | None = None) -> int:
     p.set_defaults(func=cmd_doctor)
     p = sub.add_parser("run", help="launch a registered MCP server over stdio")
     p.add_argument("server")
-    p.add_argument("extra", nargs="*", help="additional server arguments")
+    p.add_argument("extra", nargs=argparse.REMAINDER)
     p.add_argument("--verify", action="store_true", help="require a live ready assessment before launch")
     p.set_defaults(func=cmd_run)
-    p = sub.add_parser("config", help="inspect or update persistent BioMCP configuration")
-    config_sub = p.add_subparsers(dest="config_command", required=True)
-    p_show = config_sub.add_parser("show", help="show current configuration")
-    p_show.set_defaults(func=show_config)
-    p_set = config_sub.add_parser("set", help="set a configuration value")
-    p_set.add_argument("key")
-    p_set.add_argument("value")
-    p_set.set_defaults(func=set_value)
-    return parser.parse_args(argv).func(parser.parse_args(argv))
+    p = sub.add_parser("config", help="inspect or edit persistent BioMCP configuration")
+    cfg = p.add_subparsers(dest="config_command", required=True)
+    q = cfg.add_parser("show")
+    q.set_defaults(func=lambda _: print(show_config()) or 0)
+    q = cfg.add_parser("set")
+    q.add_argument("section_key")
+    q.add_argument("value")
+
+    def _set(args: argparse.Namespace) -> int:
+        if "." not in args.section_key:
+            raise SystemExit("expected section.key")
+        section, key = args.section_key.split(".", 1)
+        set_value(section, key, args.value)
+        return 0
+
+    q.set_defaults(func=_set)
+    args = parser.parse_args(argv)
+    return int(args.func(args))
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(argv=None))
