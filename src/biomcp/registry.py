@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 _REPO_REGISTRY = Path(__file__).resolve().parents[2] / "biomcp" / "registry.json"
 _PACKAGED_REGISTRY = Path(__file__).with_name("registry.json")
@@ -21,6 +22,17 @@ _ALLOWED_CAPABILITIES = {
     "mcp_capability_discovery",
     "mcp_tool_execution",
 }
+
+
+def _validate_http_endpoint(name: str, endpoint: Any) -> None:
+    """Require a real HTTP(S) URL for registry-declared HTTP transports."""
+    if not isinstance(endpoint, str) or not endpoint.strip():
+        raise ValueError(f"Server {name} with HTTP transport requires a non-empty endpoint")
+    parsed = urlparse(endpoint.strip())
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError(f"Server {name} has an invalid HTTP endpoint")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError(f"Server {name} HTTP endpoint must not contain credentials")
 
 
 def load_registry(path: Path | None = None) -> dict[str, Any]:
@@ -66,6 +78,8 @@ def load_registry(path: Path | None = None) -> dict[str, Any]:
                 raise ValueError(f"Server {name} requires a non-empty transport list")
             if not all(isinstance(x, str) and x in _ALLOWED_TRANSPORTS for x in transport):
                 raise ValueError(f"Server {name} contains an unsupported transport")
+            if "streamable-http" in transport or "sse" in transport:
+                _validate_http_endpoint(name, entry.get("endpoint"))
 
         tools = entry.get("tools", [])
         if not isinstance(tools, list) or not all(isinstance(tool, str) and tool.strip() for tool in tools):
