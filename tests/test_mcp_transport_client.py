@@ -35,14 +35,22 @@ def test_http_client_rejects_missing_registry_endpoint():
         mcp_client._client("fixture", entry, transport="streamable-http")
 
 
-def test_http_client_does_not_silently_select_sse(monkeypatch):
+def test_http_client_prefers_streamable_http_when_explicitly_requested(monkeypatch):
+    captured = {}
+
+    class FakeClient:
+        def __init__(self, target):
+            captured["target"] = target
+
     entry = {
         "name": "fixture",
         "external": True,
         "transport": ["streamable-http", "sse"],
         "endpoint": "https://example.invalid/mcp",
     }
-    monkeypatch.setattr(mcp_client, "Client", lambda target: target)
+    monkeypatch.setattr(mcp_client, "Client", FakeClient)
 
-    with pytest.raises(ValueError, match="multiple transports"):
-        mcp_client._client("fixture", entry, transport="streamable-http")
+    client = mcp_client._client("fixture", entry, transport="streamable-http")
+
+    assert isinstance(client, FakeClient)
+    assert captured["target"] == "https://example.invalid/mcp"
