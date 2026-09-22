@@ -24,7 +24,7 @@ from .config import show as show_config, set_value
 from .contracts import validate_server
 from .doctor import diagnose
 from .lifecycle import snapshot
-from .mcp_client import call_tool, discover_tools, json_arguments
+from .mcp_client import call_tool, discover_tools, discovery_snapshot, json_arguments
 from .registry import get_server, installable_servers, load_registry
 from .transport import resolve_transport_entry
 
@@ -271,6 +271,12 @@ def cmd_tools(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_discover(args: argparse.Namespace) -> int:
+    result = discovery_snapshot(args.server, transport=args.transport)
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
 def cmd_validate(args: argparse.Namespace) -> int:
     result = validate_server(args.server, transport=args.transport)
     print(json.dumps(result, indent=2, sort_keys=True))
@@ -388,6 +394,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("server")
     p.add_argument("--transport", choices=("stdio", "streamable-http"), default="stdio")
     p.set_defaults(func=cmd_tools)
+    p = sub.add_parser("discover", help="discover live MCP tools with registry and transport provenance")
+    p.add_argument("server")
+    p.add_argument("--transport", choices=("stdio", "streamable-http"), default=None, help="select a transport; default resolves the registry declaration")
+    p.set_defaults(func=cmd_discover)
     p = sub.add_parser("validate", help="compare registry-declared tools with live MCP discovery")
     p.add_argument("server")
     p.add_argument("--transport", choices=("stdio", "streamable-http"), default=None, help="require this transport; default resolves the registry declaration")
