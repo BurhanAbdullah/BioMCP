@@ -10,7 +10,7 @@ _SUPPORTED_CLIENT_TRANSPORTS = {"stdio", "streamable-http", "sse"}
 
 
 def resolve_transport_entry(entry: dict[str, Any], *, client: str = "default") -> str:
-    """Resolve one unambiguous transport from one registry entry."""
+    """Resolve one registry-declared transport for a client class."""
     server = entry.get("name", "<unknown>")
     if not entry.get("installable") and not entry.get("external"):
         raise ValueError(f"{server} is not installable or external")
@@ -23,7 +23,12 @@ def resolve_transport_entry(entry: dict[str, Any], *, client: str = "default") -
     if client == "stdio":
         allowed = {"stdio"}
     elif client == "http":
-        allowed = {"streamable-http", "sse"}
+        # Streamable HTTP is the current MCP HTTP transport. Prefer it when a
+        # registry entry advertises both it and legacy SSE; fall back to SSE
+        # only when Streamable HTTP is not declared.
+        if "streamable-http" in declared:
+            return "streamable-http"
+        allowed = {"sse"}
     elif client == "default":
         allowed = set(_SUPPORTED_CLIENT_TRANSPORTS)
     else:
@@ -38,5 +43,5 @@ def resolve_transport_entry(entry: dict[str, Any], *, client: str = "default") -
 
 
 def resolve_transport(server: str, *, client: str = "default") -> str:
-    """Resolve one unambiguous transport declared by the authoritative registry."""
+    """Resolve one transport declared by the authoritative registry."""
     return resolve_transport_entry(get_server(server), client=client)
