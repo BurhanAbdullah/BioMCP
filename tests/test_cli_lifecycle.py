@@ -49,7 +49,12 @@ def test_run_without_verify_preserves_existing_launch(monkeypatch):
     monkeypatch.setattr(cli, "get_server", lambda _: {"installable": True, "command": "imagej"})
     monkeypatch.setattr(cli.shutil, "which", lambda command: "/usr/bin/imagej")
     calls = []
-    monkeypatch.setattr(cli.subprocess, "run", lambda argv, check=False: calls.append((argv, check)) or type("Result", (), {"returncode": 0})())
+
+    def fake_run(argv, check=False, env=None):
+        calls.append((argv, check, env))
+        return type("Result", (), {"returncode": 0})()
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_run)
 
     assert main(["run", "imagej", "--", "--headless"]) == 0
-    assert calls == [(["imagej", "--headless"], False)]
+    assert calls == [(["imagej", "--headless"], False, {"PATH": cli.os.environ["PATH"]})]
