@@ -368,6 +368,8 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 
 def cmd_run(args: argparse.Namespace) -> int:
     entry = get_server(args.server)
+    if entry.get("status") == "deprecated":
+        raise SystemExit(f"{args.server} is deprecated and cannot be launched")
     if not entry.get("installable"):
         raise SystemExit(f"{args.server} is not installable (status: {entry.get('status')})")
     if args.verify:
