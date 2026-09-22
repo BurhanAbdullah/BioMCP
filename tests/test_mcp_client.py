@@ -53,7 +53,7 @@ def test_discover_tools_uses_live_mcp_protocol():
     assert all("input_schema" in tool for tool in tools)
 
 
-def test_discovery_snapshot_preserves_registry_and_transport_provenance(monkeypatch):
+def test_discovery_snapshot_preserves_registry_transport_and_protocol_provenance(monkeypatch):
     import biomcp.mcp_client as mcp_client
 
     entry = {
@@ -66,13 +66,23 @@ def test_discovery_snapshot_preserves_registry_and_transport_provenance(monkeypa
         "tools": ["sample"],
     }
 
-    async def fake_discover(server, *, transport=None):
-        assert server == "sample"
-        assert transport is None
-        return [{"name": "sample", "description": None, "input_schema": _Tool.input_schema}]
+    class _FakeResult:
+        tools = [_Tool()]
+
+    class _FakeClient:
+        protocol_version = "2026-07-28"
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def list_tools(self):
+            return _FakeResult()
 
     monkeypatch.setattr(mcp_client, "get_server", lambda server: entry)
-    monkeypatch.setattr(mcp_client, "_discover_tools", fake_discover)
+    monkeypatch.setattr(mcp_client, "_client", lambda server, entry, transport=None: _FakeClient())
     monkeypatch.setattr(mcp_client, "load_registry", lambda: {"schema_version": "test", "servers": [entry]})
     monkeypatch.setattr(
         mcp_client,
@@ -83,6 +93,7 @@ def test_discovery_snapshot_preserves_registry_and_transport_provenance(monkeypa
     assert discovery_snapshot("sample") == {
         "server": "sample",
         "transport": "stdio",
+        "protocol_version": "2026-07-28",
         "registry_status": "verified",
         "registry_provenance": {
             "source": "canonical_registry",
@@ -193,6 +204,7 @@ def test_call_tool_executes_registered_tool_over_mcp_stdio(monkeypatch):
     result = call_tool("llm", "list_models", {})
     assert result["is_error"] is True
     assert "content" in result
+    assert "protocol_version" in result["provenance"]
 
 
 def test_json_arguments_requires_object():

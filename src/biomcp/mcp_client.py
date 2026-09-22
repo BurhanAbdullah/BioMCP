@@ -103,6 +103,12 @@ def _validate_tool_arguments(tool: Any, arguments: dict[str, Any]) -> None:
         raise ValueError(f"invalid arguments for tool {tool.name!r} at {path}: {error.message}")
 
 
+def _protocol_version(client: Any) -> str | None:
+    """Return the SDK-negotiated MCP protocol generation when available."""
+    version = getattr(client, "protocol_version", None)
+    return version if isinstance(version, str) and version else None
+
+
 async def _discover_tools(server: str, *, transport: str | None = None) -> list[dict[str, Any]]:
     entry = get_server(server)
     _assert_executable_lifecycle(entry)
@@ -128,14 +134,24 @@ async def _discovery_snapshot(server: str, *, transport: str | None = None) -> d
         entry,
         client=(transport if transport == "stdio" else "http") if transport is not None else "default",
     )
-    tools = await _discover_tools(server, transport=transport)
-    return {
-        "server": server,
-        "transport": resolved_transport,
-        "registry_status": entry["status"],
-        "registry_provenance": registry_provenance(load_registry()),
-        "tools": tools,
-    }
+    async with _client(server, entry, transport=transport) as client:
+        result = await client.list_tools()
+        tools = [
+            {
+                "name": tool.name,
+                "description": tool.description,
+                "input_schema": _tool_schema(tool),
+            }
+            for tool in result.tools
+        ]
+        return {
+            "server": server,
+            "transport": resolved_transport,
+            "protocol_version": _protocol_version(client),
+            "registry_status": entry["status"],
+            "registry_provenance": registry_provenance(load_registry()),
+            "tools": tools,
+        }
 
 
 async def _call_tool(server: str, tool: str, arguments: dict[str, Any], *, transport: str | None = None) -> dict[str, Any]:
@@ -159,6 +175,7 @@ async def _call_tool(server: str, tool: str, arguments: dict[str, Any], *, trans
                 "server": server,
                 "tool": tool,
                 "transport": resolved_transport,
+                "protocol_version": _protocol_version(client),
                 "registry_status": entry["status"],
             },
         }
