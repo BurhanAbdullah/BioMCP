@@ -366,6 +366,18 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 1 if failures else 0
 
 
+def _run_environment(entry: dict[str, Any]) -> dict[str, str]:
+    """Expose only registry-declared environment variables to a launched server."""
+    configured = entry.get("config", [])
+    if not isinstance(configured, list) or not all(isinstance(name, str) for name in configured):
+        raise SystemExit(f"{entry.get('name', '<unknown>')} has invalid environment configuration")
+    env = {"PATH": os.environ.get("PATH", "")}
+    for name in configured:
+        if name in os.environ:
+            env[name] = os.environ[name]
+    return env
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     entry = get_server(args.server)
     if entry.get("status") == "deprecated":
@@ -377,10 +389,19 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(json.dumps(readiness, indent=2, sort_keys=True))
         if readiness["status"] != "ready":
             return 1
-    command = str(entry["command"])
+    command = entry.get("command")
+    if not isinstance(command, str) or not command.strip():
+        raise SystemExit(f"{args.server} has no executable command")
+    declared_args = entry.get("args", [])
+    if not isinstance(declared_args, list) or not all(isinstance(arg, str) for arg in declared_args):
+        raise SystemExit(f"{args.server} has invalid command arguments")
     if shutil.which(command) is None:
         raise SystemExit(f"Command not found: {command}. Run `biomcp doctor --server {args.server}`.")
-    return subprocess.run([command, *args.extra], check=False).returncode
+    return subprocess.run(
+        [command, *declared_args, *args.extra],
+        check=False,
+        env=_run_environment(entry),
+    ).returncode
 
 
 def main(argv: list[str] | None = None) -> int:
