@@ -17,9 +17,9 @@ from .transport import resolve_transport_entry
 def _assert_executable_lifecycle(entry: dict[str, Any]) -> None:
     """Enforce the registry lifecycle state at the execution boundary."""
     status = entry.get("status")
-    if status == "deprecated":
+    if status in {"planned", "deprecated"}:
         server = entry.get("name", "<unknown>")
-        raise ValueError(f"Server {server} is deprecated and cannot be launched or called")
+        raise ValueError(f"Server {server} is {status} and cannot be launched or called")
 
 
 def _server_parameters(server: str) -> StdioServerParameters:

@@ -130,6 +130,42 @@ def test_deprecated_server_is_blocked_before_tool_call(monkeypatch):
         call_tool("retired", "sample", {})
 
 
+def test_planned_server_is_blocked_before_discovery(monkeypatch):
+    import biomcp.mcp_client as mcp_client
+
+    entry = {
+        "name": "planned-server",
+        "installable": True,
+        "external": False,
+        "status": "planned",
+        "transport": ["stdio"],
+        "command": "must-not-launch",
+        "tools": ["sample"],
+    }
+    monkeypatch.setattr(mcp_client, "get_server", lambda server: entry)
+
+    with pytest.raises(ValueError, match="planned and cannot be launched or called"):
+        discover_tools("planned-server")
+
+
+def test_planned_server_is_blocked_before_tool_call(monkeypatch):
+    import biomcp.mcp_client as mcp_client
+
+    entry = {
+        "name": "planned-server",
+        "installable": True,
+        "external": False,
+        "status": "planned",
+        "transport": ["stdio"],
+        "command": "must-not-launch",
+        "tools": ["sample"],
+    }
+    monkeypatch.setattr(mcp_client, "get_server", lambda server: entry)
+
+    with pytest.raises(ValueError, match="planned and cannot be launched or called"):
+        call_tool("planned-server", "sample", {})
+
+
 def test_call_tool_rejects_undeclared_tool_before_launch():
     with pytest.raises(ValueError, match="not declared"):
         call_tool("llm", "not_registered", {})
