@@ -88,6 +88,7 @@ def test_transport_aware_client_calls_tool_over_real_http(live_http_server, tmp_
         "server": "fixture-http",
         "tool": "inspect_image",
         "transport": "streamable-http",
+        "protocol_version": "2026-07-28",
         "registry_status": "validated",
     }
     assert result["structured_content"]["shape"] == [2, 2]
@@ -110,6 +111,7 @@ def test_registry_default_client_calls_tool_over_real_http(live_http_server, tmp
     assert result["provenance"]["server"] == "fixture-http"
     assert result["provenance"]["tool"] == "inspect_image"
     assert result["provenance"]["transport"] == "streamable-http"
+    assert result["provenance"]["protocol_version"] == "2026-07-28"
     assert result["provenance"]["registry_status"] == "validated"
     assert result["structured_content"]["shape"] == [2, 2]
     assert result["structured_content"]["dtype"] == "uint8"
