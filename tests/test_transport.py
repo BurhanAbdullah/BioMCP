@@ -31,7 +31,21 @@ def test_http_transport_resolution_accepts_streamable_http(monkeypatch):
     assert transport.resolve_transport("fixture", client="http") == "streamable-http"
 
 
-def test_transport_resolution_rejects_ambiguous_http_metadata(monkeypatch):
+def test_http_transport_resolution_prefers_streamable_http_over_legacy_sse(monkeypatch):
+    monkeypatch.setattr(
+        transport,
+        "get_server",
+        lambda name: {
+            "name": name,
+            "external": True,
+            "transport": ["streamable-http", "sse"],
+        },
+    )
+
+    assert transport.resolve_transport("fixture", client="http") == "streamable-http"
+
+
+def test_default_transport_resolution_rejects_ambiguous_metadata(monkeypatch):
     monkeypatch.setattr(
         transport,
         "get_server",
@@ -43,4 +57,4 @@ def test_transport_resolution_rejects_ambiguous_http_metadata(monkeypatch):
     )
 
     with pytest.raises(ValueError, match="multiple transports"):
-        transport.resolve_transport("fixture", client="http")
+        transport.resolve_transport("fixture", client="default")
