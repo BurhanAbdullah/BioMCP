@@ -372,12 +372,6 @@ def cmd_run(args: argparse.Namespace) -> int:
         raise SystemExit(f"{args.server} is deprecated and cannot be launched")
     if not entry.get("installable"):
         raise SystemExit(f"{args.server} is not installable (status: {entry.get('status')})")
-    try:
-        transport = resolve_transport_entry(entry, client="stdio")
-    except ValueError as exc:
-        raise SystemExit(f"{args.server} cannot be launched by `biomcp run`: {exc}") from exc
-    if transport != "stdio":
-        raise SystemExit(f"{args.server} declares {transport} transport; `biomcp run` only launches stdio servers")
     if args.verify:
         readiness = assess_server(args.server)
         print(json.dumps(readiness, indent=2, sort_keys=True))
