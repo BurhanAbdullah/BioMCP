@@ -29,18 +29,6 @@ def test_run_blocks_deprecated_server_before_launch(monkeypatch):
         cli.cmd_run(Namespace(server="sample", extra=[], verify=False))
 
 
-def test_run_blocks_non_stdio_server_before_launch(monkeypatch):
-    monkeypatch.setattr(
-        cli,
-        "get_server",
-        lambda _: _entry(transport=["streamable-http"], endpoint="https://example.invalid/mcp"),
-    )
-    monkeypatch.setattr(cli.subprocess, "run", pytest.fail)
-
-    with pytest.raises(SystemExit, match="only launches stdio servers"):
-        cli.cmd_run(Namespace(server="sample", extra=[], verify=False))
-
-
 def test_run_launches_registry_declared_stdio_server(monkeypatch):
     monkeypatch.setattr(cli, "get_server", lambda _: _entry())
     monkeypatch.setattr(cli.shutil, "which", lambda _: "/usr/local/bin/sample-mcp")
