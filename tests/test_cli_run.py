@@ -30,18 +30,56 @@ def test_run_blocks_deprecated_server_before_launch(monkeypatch):
 
 
 def test_run_launches_registry_declared_stdio_server(monkeypatch):
-    monkeypatch.setattr(cli, "get_server", lambda _: _entry())
+    monkeypatch.setattr(cli, "get_server", lambda _: _entry(args=["--mode", "stdio"]))
     monkeypatch.setattr(cli.shutil, "which", lambda _: "/usr/local/bin/sample-mcp")
     calls = []
 
     class Result:
         returncode = 7
 
-    def fake_run(command, check=False):
-        calls.append((command, check))
+    def fake_run(command, check=False, env=None):
+        calls.append((command, check, env))
+        return Result()
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+    monkeypatch.setenv("SAMPLE_TOKEN", "secret")
+
+    assert cli.cmd_run(
+        Namespace(
+            server="sample",
+            extra=["--stdio"],
+            verify=False,
+        )
+    ) == 7
+    assert calls == [
+        (["sample-mcp", "--mode", "stdio", "--stdio"], False, {"PATH": cli.os.environ["PATH"]})
+    ]
+
+
+def test_run_passes_only_registry_declared_environment(monkeypatch):
+    monkeypatch.setattr(
+        cli,
+        "get_server",
+        lambda _: _entry(config=["SAMPLE_TOKEN", "OPTIONAL_TOKEN"]),
+    )
+    monkeypatch.setattr(cli.shutil, "which", lambda _: "/usr/local/bin/sample-mcp")
+    monkeypatch.setenv("SAMPLE_TOKEN", "secret")
+    monkeypatch.setenv("UNDECLARED_TOKEN", "must-not-leak")
+    calls = []
+
+    class Result:
+        returncode = 0
+
+    def fake_run(command, check=False, env=None):
+        calls.append(env)
         return Result()
 
     monkeypatch.setattr(cli.subprocess, "run", fake_run)
 
-    assert cli.cmd_run(Namespace(server="sample", extra=["--stdio"], verify=False)) == 7
-    assert calls == [(["sample-mcp", "--stdio"], False)]
+    assert cli.cmd_run(Namespace(server="sample", extra=[], verify=False)) == 0
+    assert calls == [
+        {
+            "PATH": cli.os.environ["PATH"],
+            "SAMPLE_TOKEN": "secret",
+        }
+    ]
