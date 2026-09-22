@@ -1,0 +1,59 @@
+"""Tests for registry-authoritative CLI server launch."""
+from __future__ import annotations
+
+from argparse import Namespace
+
+import pytest
+
+from biomcp import cli
+
+
+def _entry(**overrides):
+    entry = {
+        "name": "sample",
+        "status": "experimental",
+        "installable": True,
+        "transport": ["stdio"],
+        "command": "sample-mcp",
+        "args": [],
+    }
+    entry.update(overrides)
+    return entry
+
+
+def test_run_blocks_deprecated_server_before_launch(monkeypatch):
+    monkeypatch.setattr(cli, "get_server", lambda _: _entry(status="deprecated"))
+    monkeypatch.setattr(cli.subprocess, "run", pytest.fail)
+
+    with pytest.raises(SystemExit, match="deprecated and cannot be launched"):
+        cli.cmd_run(Namespace(server="sample", extra=[], verify=False))
+
+
+def test_run_blocks_non_stdio_server_before_launch(monkeypatch):
+    monkeypatch.setattr(
+        cli,
+        "get_server",
+        lambda _: _entry(transport=["streamable-http"], endpoint="https://example.invalid/mcp"),
+    )
+    monkeypatch.setattr(cli.subprocess, "run", pytest.fail)
+
+    with pytest.raises(SystemExit, match="only launches stdio servers"):
+        cli.cmd_run(Namespace(server="sample", extra=[], verify=False))
+
+
+def test_run_launches_registry_declared_stdio_server(monkeypatch):
+    monkeypatch.setattr(cli, "get_server", lambda _: _entry())
+    monkeypatch.setattr(cli.shutil, "which", lambda _: "/usr/local/bin/sample-mcp")
+    calls = []
+
+    class Result:
+        returncode = 7
+
+    def fake_run(command, check=False):
+        calls.append((command, check))
+        return Result()
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+
+    assert cli.cmd_run(Namespace(server="sample", extra=["--stdio"], verify=False)) == 7
+    assert calls == [(["sample-mcp", "--stdio"], False)]
