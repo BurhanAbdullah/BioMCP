@@ -8,8 +8,10 @@ from __future__ import annotations
 
 import importlib.metadata
 import importlib.util
+import json
 import os
 import shutil
+from pathlib import Path
 
 from .registry import get_server, installable_servers
 from .transport import resolve_transport_entry
@@ -70,6 +72,42 @@ def _installed_artifact(entry: dict, command_path: str | None) -> dict[str, obje
     }
 
 
+def _client_config_status(entry: dict) -> dict[str, object]:
+    """Check an existing generic client config against current registry truth.
+
+    A missing config is informational because ``doctor`` is also used before
+    installation. Once a generic config exists, however, drift is a readiness
+    failure: the client would otherwise launch a stale registry configuration.
+    """
+    path = Path.home() / ".config" / "biomcp" / "mcp.json"
+    if not path.exists():
+        return {"path": str(path), "status": "missing", "ok": True}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return {"path": str(path), "status": "invalid", "error": str(exc), "ok": False}
+
+    block = data.get("mcpServers") if isinstance(data, dict) else None
+    key = f"biomcp_{entry['name']}"
+    if not isinstance(block, dict) or key not in block:
+        return {"path": str(path), "status": "missing-entry", "server": key, "ok": True}
+
+    transport = resolve_transport_entry(entry, client="default")
+    if transport == "stdio":
+        expected = {"command": entry["command"], "args": list(entry.get("args", []))}
+    elif transport == "streamable-http":
+        endpoint = entry.get("endpoint")
+        expected = {"url": endpoint.strip()} if isinstance(endpoint, str) and endpoint.strip() else None
+    else:
+        expected = None
+
+    if expected is None:
+        return {"path": str(path), "status": "unsupported", "transport": transport, "ok": False}
+    if block.get(key) != expected:
+        return {"path": str(path), "status": "drift", "server": key, "expected": expected, "actual": block.get(key), "ok": False}
+    return {"path": str(path), "status": "match", "server": key, "transport": transport, "ok": True}
+
+
 def diagnose(name: str | None = None) -> list[dict[str, object]]:
     entries = installable_servers()
     if name:
@@ -90,6 +128,7 @@ def diagnose(name: str | None = None) -> list[dict[str, object]]:
         except ValueError as exc:
             resolved_transport = None
             transport_error = str(exc)
+        client_config = _client_config_status(entry)
         results.append(
             {
                 "name": entry["name"],
@@ -102,10 +141,12 @@ def diagnose(name: str | None = None) -> list[dict[str, object]]:
                 "missing_dependencies": missing_dependencies,
                 "missing_configuration": missing_configuration,
                 "artifact": artifact,
+                "client_config": client_config,
                 "ok": bool(artifact["ok"])
                 and not missing_dependencies
                 and not missing_configuration
-                and transport_error is None,
+                and transport_error is None
+                and bool(client_config["ok"]),
             }
         )
     return results
@@ -127,6 +168,9 @@ def run_doctor(name: str | None = None) -> int:
         artifact = dict(result["artifact"])
         if not artifact["ok"]:
             detail += " | artifact: distribution/entry point unavailable"
+        client_config = dict(result["client_config"])
+        if client_config["status"] in {"drift", "invalid", "unsupported"}:
+            detail += f" | client config: {client_config['status']}"
         missing = list(result["missing_dependencies"])
         config = list(result["missing_configuration"])
         if missing:
