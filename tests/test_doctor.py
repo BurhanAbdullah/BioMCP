@@ -48,6 +48,11 @@ def test_diagnose_marks_missing_configuration_as_not_ok(monkeypatch):
             "command_path": "/usr/bin/demo-command",
             "ok": True,
         },
+        "client_config": {
+            "path": str(doctor.Path.home() / ".config/biomcp/mcp.json"),
+            "status": "missing",
+            "ok": True,
+        },
         "ok": False,
     }]
 
