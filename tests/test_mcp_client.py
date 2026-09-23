@@ -53,6 +53,14 @@ def test_discover_tools_uses_live_mcp_protocol():
     assert all("input_schema" in tool for tool in tools)
 
 
+def test_live_stdio_discovery_uses_modern_mcp_protocol():
+    snapshot = discovery_snapshot("llm")
+    assert snapshot["transport"] == "stdio"
+    assert snapshot["protocol_version"] == "2026-07-28"
+    assert snapshot["registry_status"] == "experimental"
+    assert snapshot["tools"]
+
+
 def test_discovery_snapshot_preserves_registry_transport_and_protocol_provenance(monkeypatch):
     import biomcp.mcp_client as mcp_client
 
