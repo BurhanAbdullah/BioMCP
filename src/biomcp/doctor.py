@@ -73,13 +73,10 @@ def _installed_artifact(entry: dict, command_path: str | None) -> dict[str, obje
 
 
 def _client_config_status(entry: dict) -> dict[str, object]:
-    """Check an existing generic client config against current registry truth.
-
-    A missing config is informational because ``doctor`` is also used before
-    installation. Once a generic config exists, however, drift is a readiness
-    failure: the client would otherwise launch a stale registry configuration.
-    """
-    path = Path.home() / ".config" / "biomcp" / "mcp.json"
+    """Check an existing generic client config against current registry truth."""
+    config_root = os.environ.get("XDG_CONFIG_HOME")
+    root = Path(config_root) if config_root else Path.home() / ".config"
+    path = root / "biomcp" / "mcp.json"
     if not path.exists():
         return {"path": str(path), "status": "missing", "ok": True}
     try:
@@ -92,7 +89,10 @@ def _client_config_status(entry: dict) -> dict[str, object]:
     if not isinstance(block, dict) or key not in block:
         return {"path": str(path), "status": "missing-entry", "server": key, "ok": True}
 
-    transport = resolve_transport_entry(entry, client="default")
+    try:
+        transport = resolve_transport_entry(entry, client="default")
+    except ValueError as exc:
+        return {"path": str(path), "status": "invalid", "error": str(exc), "ok": False}
     if transport == "stdio":
         expected = {"command": entry["command"], "args": list(entry.get("args", []))}
     elif transport == "streamable-http":
