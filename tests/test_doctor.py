@@ -12,7 +12,7 @@ def test_diagnose_marks_missing_configuration_as_not_ok(monkeypatch):
     }])
     monkeypatch.delenv("DEMO_API_KEY", raising=False)
     monkeypatch.setattr(doctor.shutil, "which", lambda command: "/usr/bin/demo-command")
-    monkeypatch.setattr(doctor, "resolve_transport_entry", lambda entry, client: "stdio")
+    monkeypatch.setattr(doctor, "resolve_transport_entry", lambda entry, *, client: "stdio")
     monkeypatch.setattr(
         doctor,
         "_installed_artifact",
@@ -59,7 +59,7 @@ def test_diagnose_is_ok_when_configuration_and_artifact_are_present(monkeypatch)
     }])
     monkeypatch.setenv("DEMO_API_KEY", "configured")
     monkeypatch.setattr(doctor.shutil, "which", lambda command: "/usr/bin/demo-command")
-    monkeypatch.setattr(doctor, "resolve_transport_entry", lambda entry, client: "stdio")
+    monkeypatch.setattr(doctor, "resolve_transport_entry", lambda entry, *, client: "stdio")
     monkeypatch.setattr(
         doctor,
         "_installed_artifact",
@@ -95,7 +95,7 @@ def test_diagnose_fails_when_registry_transport_is_invalid(monkeypatch):
     monkeypatch.setattr(
         doctor,
         "resolve_transport_entry",
-        lambda entry, client: (_ for _ in ()).throw(ValueError("invalid transport declaration")),
+        lambda entry, *, client: (_ for _ in ()).throw(ValueError("invalid transport declaration")),
     )
     monkeypatch.setattr(
         doctor,
