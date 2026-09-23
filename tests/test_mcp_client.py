@@ -1,3 +1,7 @@
+import socket
+import threading
+import time
+
 import pytest
 
 from biomcp.mcp_client import (
@@ -59,6 +63,61 @@ def test_live_stdio_discovery_uses_modern_mcp_protocol():
     assert snapshot["protocol_version"] == "2026-07-28"
     assert snapshot["registry_status"] == "experimental"
     assert snapshot["tools"]
+
+
+def test_live_streamable_http_discovery_uses_modern_mcp_protocol(monkeypatch):
+    import biomcp.mcp_client as mcp_client
+    from biomcp.http import create_streamable_http_app
+    from mcp.server.mcpserver import MCPServer
+    import uvicorn
+
+    mcp = MCPServer("BioMCP-HTTP-Fixture")
+
+    @mcp.tool()
+    def sample_tool(path: str) -> dict[str, str]:
+        """Return a deterministic fixture payload."""
+        return {"path": path}
+
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = int(probe.getsockname()[1])
+
+    app = create_streamable_http_app(
+        mcp,
+        allowed_hosts=[f"127.0.0.1:{port}"],
+        stateless_http=True,
+    )
+    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error")
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+
+    try:
+        deadline = time.monotonic() + 10
+        while not server.started:
+            if not thread.is_alive() or time.monotonic() >= deadline:
+                raise RuntimeError("Streamable HTTP fixture server did not start")
+            time.sleep(0.01)
+
+        entry = {
+            "name": "http-fixture",
+            "installable": True,
+            "external": False,
+            "status": "experimental",
+            "transport": ["streamable-http"],
+            "endpoint": f"http://127.0.0.1:{port}/mcp",
+            "tools": ["sample_tool"],
+        }
+        monkeypatch.setattr(mcp_client, "get_server", lambda server_name: entry)
+        snapshot = discovery_snapshot("http-fixture")
+
+        assert snapshot["transport"] == "streamable-http"
+        assert snapshot["protocol_version"] == "2026-07-28"
+        assert snapshot["registry_status"] == "experimental"
+        assert [tool["name"] for tool in snapshot["tools"]] == ["sample_tool"]
+    finally:
+        server.should_exit = True
+        thread.join(timeout=5)
 
 
 def test_discovery_snapshot_preserves_registry_transport_and_protocol_provenance(monkeypatch):
