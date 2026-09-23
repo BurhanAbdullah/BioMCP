@@ -121,6 +121,38 @@ def _write_codex(path: Path, servers: dict[str, dict[str, Any]]) -> None:
     _atomic_write_text(path, existing.rstrip() + "\n")
 
 
+def _verify_client_config(client: str, path: Path, servers: dict[str, dict[str, Any]]) -> None:
+    """Verify that a client config contains the exact registry-derived BioMCP block."""
+    if client == "codex":
+        text = path.read_text(encoding="utf-8")
+        for name, cfg in servers.items():
+            section = f"[mcp_servers.{name}]"
+            start = text.find(section)
+            if start < 0:
+                raise RuntimeError(f"Missing {section} in {path}")
+            end = text.find("\n[", start + len(section))
+            block = text[start:] if end < 0 else text[start:end]
+            if "url" in cfg:
+                expected = f"url = {json.dumps(cfg['url'])}"
+            else:
+                args = "[" + ", ".join(json.dumps(x) for x in cfg.get("args", [])) + "]"
+                expected = (
+                    f"command = {json.dumps(cfg['command'])}\n"
+                    f"args = {args}"
+                )
+            if expected not in block:
+                raise RuntimeError(f"Registry-derived configuration mismatch for {name} in {path}")
+        return
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    block = data.get("mcpServers")
+    if not isinstance(block, dict):
+        raise RuntimeError(f"Invalid mcpServers object: {path}")
+    for name, cfg in servers.items():
+        if block.get(name) != cfg:
+            raise RuntimeError(f"Registry-derived configuration mismatch for {name} in {path}")
+
+
 def _configure_clients(targets: list[tuple[str, Path]], servers: dict[str, dict[str, Any]]) -> None:
     """Write all client configs as one transaction, restoring prior files on failure."""
     snapshots: dict[Path, tuple[bool, bytes, int]] = {}
@@ -137,6 +169,7 @@ def _configure_clients(targets: list[tuple[str, Path]], servers: dict[str, dict[
                 _write_codex(path, servers)
             else:
                 _write_json(path, servers)
+            _verify_client_config(client, path, servers)
             print(f"configured {path}")
     except BaseException:
         for path, (existed, content, mode) in snapshots.items():
