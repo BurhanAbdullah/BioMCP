@@ -70,6 +70,30 @@ def test_registry_rejects_missing_transport_for_executable_entry(tmp_path):
         load_registry(path)
 
 
+def test_registry_rejects_invalid_http_endpoint(tmp_path):
+    payload = load_registry()
+    entry = dict(payload["servers"][0])
+    entry["transport"] = ["streamable-http"]
+    entry["endpoint"] = "file:///tmp/mcp"
+    payload["servers"].append(entry | {"name": "invalid-http"})
+    path = tmp_path / "registry.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="invalid HTTP endpoint"):
+        load_registry(path)
+
+
+def test_registry_rejects_http_endpoint_credentials(tmp_path):
+    payload = load_registry()
+    entry = dict(payload["servers"][0])
+    entry["transport"] = ["streamable-http"]
+    entry["endpoint"] = "https://user:secret@example.invalid/mcp"
+    payload["servers"].append(entry | {"name": "credential-http"})
+    path = tmp_path / "registry.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="must not contain credentials"):
+        load_registry(path)
+
+
 def test_planned_non_installable_entry_may_omit_transport(tmp_path):
     payload = load_registry()
     planned = next(entry for entry in payload["servers"] if entry["name"] == "cellprofiler")
