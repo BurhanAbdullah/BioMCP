@@ -57,7 +57,7 @@ def test_live_stdio_discovery_uses_modern_mcp_protocol():
     snapshot = discovery_snapshot("llm")
     assert snapshot["transport"] == "stdio"
     assert snapshot["protocol_version"] == "2026-07-28"
-    assert snapshot["registry_status"] == "verified"
+    assert snapshot["registry_status"] == "experimental"
     assert snapshot["tools"]
 
 
