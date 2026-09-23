@@ -12,6 +12,7 @@ import os
 import shutil
 
 from .registry import get_server, installable_servers
+from .transport import resolve_transport_entry
 
 
 def _missing_dependencies(entry: dict) -> list[str]:
@@ -69,16 +70,28 @@ def diagnose(name: str | None = None) -> list[dict[str, object]]:
         missing_dependencies = _missing_dependencies(entry)
         missing_configuration = _missing_configuration(entry)
         artifact = _installed_artifact(entry, command_path)
+        transport_error: str | None = None
+        try:
+            resolved_transport = resolve_transport_entry(entry, client="default")
+        except ValueError as exc:
+            resolved_transport = None
+            transport_error = str(exc)
         results.append(
             {
                 "name": entry["name"],
                 "lifecycle_status": entry["status"],
+                "transport": resolved_transport,
+                "transport_error": transport_error,
+                "endpoint": entry.get("endpoint"),
                 "command": command,
                 "command_path": command_path,
                 "missing_dependencies": missing_dependencies,
                 "missing_configuration": missing_configuration,
                 "artifact": artifact,
-                "ok": bool(artifact["ok"]) and not missing_dependencies and not missing_configuration,
+                "ok": bool(artifact["ok"])
+                and not missing_dependencies
+                and not missing_configuration
+                and transport_error is None,
             }
         )
     return results
@@ -90,7 +103,13 @@ def run_doctor(name: str | None = None) -> int:
         ok = bool(result["ok"])
         status = "OK" if ok else "MISSING"
         lifecycle = str(result["lifecycle_status"])
-        detail = f"{result['command']} | lifecycle: {lifecycle}"
+        transport = str(result["transport"] or "invalid")
+        detail = f"{result['command']} | lifecycle: {lifecycle} | transport: {transport}"
+        endpoint = result.get("endpoint")
+        if endpoint:
+            detail += f" | endpoint: {endpoint}"
+        if result.get("transport_error"):
+            detail += f" | transport error: {result['transport_error']}"
         artifact = dict(result["artifact"])
         if not artifact["ok"]:
             detail += " | artifact: distribution/entry point unavailable"
