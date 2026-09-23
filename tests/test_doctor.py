@@ -20,6 +20,8 @@ def test_diagnose_marks_missing_configuration_as_not_ok(monkeypatch):
             "distribution": "biomcp",
             "version": "0.2.0",
             "entry_point": True,
+            "entry_point_value": "biomcp_servers.demo:main",
+            "module_importable": True,
             "command_path": command_path,
             "ok": True,
         },
@@ -41,6 +43,8 @@ def test_diagnose_marks_missing_configuration_as_not_ok(monkeypatch):
             "distribution": "biomcp",
             "version": "0.2.0",
             "entry_point": True,
+            "entry_point_value": "biomcp_servers.demo:main",
+            "module_importable": True,
             "command_path": "/usr/bin/demo-command",
             "ok": True,
         },
@@ -67,6 +71,8 @@ def test_diagnose_is_ok_when_configuration_and_artifact_are_present(monkeypatch)
             "distribution": "biomcp",
             "version": "0.2.0",
             "entry_point": True,
+            "entry_point_value": "biomcp_servers.demo:main",
+            "module_importable": True,
             "command_path": command_path,
             "ok": True,
         },
@@ -79,7 +85,59 @@ def test_diagnose_is_ok_when_configuration_and_artifact_are_present(monkeypatch)
     assert result[0]["transport_error"] is None
     assert result[0]["missing_configuration"] == []
     assert result[0]["artifact"]["entry_point"] is True
+    assert result[0]["artifact"]["entry_point_value"] == "biomcp_servers.demo:main"
+    assert result[0]["artifact"]["module_importable"] is True
     assert result[0]["ok"] is True
+
+
+def test_installed_artifact_rejects_missing_entry_point_module(monkeypatch):
+    class EntryPoint:
+        name = "demo-command"
+        value = "missing_demo_module:main"
+        group = "console_scripts"
+
+    class Distribution:
+        version = "0.2.0"
+        metadata = {"Name": "biomcp"}
+        entry_points = [EntryPoint()]
+
+    monkeypatch.setattr(doctor.importlib.metadata, "distribution", lambda name: Distribution())
+    monkeypatch.setattr(doctor.importlib.util, "find_spec", lambda module: None)
+
+    result = doctor._installed_artifact(
+        {"command": "demo-command", "distribution": "biomcp"},
+        "/usr/bin/demo-command",
+    )
+
+    assert result["entry_point"] is True
+    assert result["entry_point_value"] == "missing_demo_module:main"
+    assert result["module_importable"] is False
+    assert result["ok"] is False
+
+
+def test_installed_artifact_accepts_importable_entry_point_module(monkeypatch):
+    class EntryPoint:
+        name = "demo-command"
+        value = "biomcp_servers.demo:main"
+        group = "console_scripts"
+
+    class Distribution:
+        version = "0.2.0"
+        metadata = {"Name": "biomcp"}
+        entry_points = [EntryPoint()]
+
+    monkeypatch.setattr(doctor.importlib.metadata, "distribution", lambda name: Distribution())
+    monkeypatch.setattr(doctor.importlib.util, "find_spec", lambda module: object())
+
+    result = doctor._installed_artifact(
+        {"command": "demo-command", "distribution": "biomcp"},
+        "/usr/bin/demo-command",
+    )
+
+    assert result["entry_point"] is True
+    assert result["entry_point_value"] == "biomcp_servers.demo:main"
+    assert result["module_importable"] is True
+    assert result["ok"] is True
 
 
 def test_diagnose_fails_when_registry_transport_is_invalid(monkeypatch):
@@ -102,7 +160,15 @@ def test_diagnose_fails_when_registry_transport_is_invalid(monkeypatch):
     monkeypatch.setattr(
         doctor,
         "_installed_artifact",
-        lambda entry, command_path: {"distribution": "biomcp", "version": "0.2.0", "entry_point": True, "command_path": command_path, "ok": True},
+        lambda entry, command_path: {
+            "distribution": "biomcp",
+            "version": "0.2.0",
+            "entry_point": True,
+            "entry_point_value": "biomcp_servers.demo:main",
+            "module_importable": True,
+            "command_path": command_path,
+            "ok": True,
+        },
     )
 
     result = doctor.diagnose("demo")[0]

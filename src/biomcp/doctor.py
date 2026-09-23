@@ -28,7 +28,7 @@ def _missing_configuration(entry: dict) -> list[str]:
 
 
 def _installed_artifact(entry: dict, command_path: str | None) -> dict[str, object]:
-    """Verify that the registry command belongs to the installed distribution."""
+    """Verify that the registry command resolves to a real installed entry point."""
     distribution_name = str(entry.get("distribution", "biomcp"))
     command = str(entry["command"])
     try:
@@ -38,6 +38,8 @@ def _installed_artifact(entry: dict, command_path: str | None) -> dict[str, obje
             "distribution": distribution_name,
             "version": None,
             "entry_point": False,
+            "entry_point_value": None,
+            "module_importable": False,
             "command_path": command_path,
             "ok": False,
         }
@@ -47,12 +49,24 @@ def _installed_artifact(entry: dict, command_path: str | None) -> dict[str, obje
         for item in distribution.entry_points
         if item.group == "console_scripts"
     }
+    entry_point_value = console_scripts.get(command)
+    module_importable = False
+    if isinstance(entry_point_value, str) and ":" in entry_point_value:
+        module_name = entry_point_value.split(":", 1)[0].strip()
+        if module_name:
+            try:
+                module_importable = importlib.util.find_spec(module_name) is not None
+            except (ImportError, ModuleNotFoundError, ValueError):
+                module_importable = False
+
     return {
         "distribution": distribution.metadata["Name"] or distribution_name,
         "version": distribution.version,
         "entry_point": command in console_scripts,
+        "entry_point_value": entry_point_value,
+        "module_importable": module_importable,
         "command_path": command_path,
-        "ok": bool(command_path) and command in console_scripts,
+        "ok": bool(command_path) and command in console_scripts and module_importable,
     }
 
 
