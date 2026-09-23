@@ -17,6 +17,7 @@ def _entry():
 
 def test_client_config_missing_is_nonblocking(monkeypatch, tmp_path):
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
 
     result = doctor._client_config_status(_entry())
 
@@ -26,6 +27,7 @@ def test_client_config_missing_is_nonblocking(monkeypatch, tmp_path):
 
 def test_client_config_match_is_healthy(monkeypatch, tmp_path):
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     path = tmp_path / ".config/biomcp/mcp.json"
     path.parent.mkdir(parents=True)
     path.write_text(
@@ -49,6 +51,7 @@ def test_client_config_match_is_healthy(monkeypatch, tmp_path):
 
 def test_client_config_drift_blocks_readiness(monkeypatch, tmp_path):
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     path = tmp_path / ".config/biomcp/mcp.json"
     path.parent.mkdir(parents=True)
     path.write_text(
@@ -72,6 +75,7 @@ def test_client_config_drift_blocks_readiness(monkeypatch, tmp_path):
 
 def test_client_config_invalid_json_blocks_readiness(monkeypatch, tmp_path):
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
     path = tmp_path / ".config/biomcp/mcp.json"
     path.parent.mkdir(parents=True)
     path.write_text("{not-json", encoding="utf-8")
