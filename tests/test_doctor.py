@@ -83,14 +83,16 @@ def test_diagnose_is_ok_when_configuration_and_artifact_are_present(monkeypatch)
 
 
 def test_diagnose_fails_when_registry_transport_is_invalid(monkeypatch):
-    monkeypatch.setattr(doctor, "installable_servers", lambda: [{
+    entry = {
         "name": "demo",
         "command": "demo-command",
         "status": "experimental",
         "dependencies": [],
         "config": [],
         "installable": True,
-    }])
+    }
+    monkeypatch.setattr(doctor, "installable_servers", lambda: [entry])
+    monkeypatch.setattr(doctor, "get_server", lambda name: entry)
     monkeypatch.setattr(doctor.shutil, "which", lambda command: "/usr/bin/demo-command")
     monkeypatch.setattr(
         doctor,
