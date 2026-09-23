@@ -146,3 +146,39 @@ def test_codex_writes_http_url_config(tmp_path):
     assert '[mcp_servers.biomcp_http-fixture]' in content
     assert 'url = "https://example.invalid/mcp"' in content
     assert "command =" not in content
+
+
+def test_config_verification_rejects_registry_drift(tmp_path):
+    path = tmp_path / "mcp.json"
+    servers = {"biomcp_bioimage": {"command": "biomcp-bioimage", "args": []}}
+    cli._write_json(path, servers)
+    cli._verify_client_config("generic", path, servers)
+
+    path.write_text(
+        '{"mcpServers": {"biomcp_bioimage": {"command": "tampered", "args": []}}}\n',
+        encoding="utf-8",
+    )
+    try:
+        cli._verify_client_config("generic", path, servers)
+    except RuntimeError as exc:
+        assert "configuration mismatch" in str(exc)
+    else:
+        raise AssertionError("tampered client configuration must be rejected")
+
+
+def test_config_verification_rejects_codex_registry_drift(tmp_path):
+    path = tmp_path / "config.toml"
+    servers = {"biomcp_bioimage": {"command": "biomcp-bioimage", "args": ["--mode", "stdio"]}}
+    cli._write_codex(path, servers)
+    cli._verify_client_config("codex", path, servers)
+
+    path.write_text(
+        '[mcp_servers.biomcp_bioimage]\ncommand = "tampered"\nargs = ["--mode", "stdio"]\n',
+        encoding="utf-8",
+    )
+    try:
+        cli._verify_client_config("codex", path, servers)
+    except RuntimeError as exc:
+        assert "configuration mismatch" in str(exc)
+    else:
+        raise AssertionError("tampered Codex configuration must be rejected")
