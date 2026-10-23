@@ -25,8 +25,8 @@ def _assert_executable_lifecycle(entry: dict[str, Any]) -> None:
 def _server_parameters(server: str) -> StdioServerParameters:
     entry = get_server(server)
     _assert_executable_lifecycle(entry)
-    if not entry.get("installable"):
-        raise ValueError(f"{server} is not installable and cannot be launched by the BioMCP client")
+    if not entry.get("installable") and not entry.get("external"):
+        raise ValueError(f"{server} is not installable or external and cannot be launched by the BioMCP client")
     try:
         transport = resolve_transport_entry(entry, client="stdio")
     except ValueError as exc:
