@@ -83,3 +83,31 @@ def test_run_passes_only_registry_declared_environment(monkeypatch):
             "SAMPLE_TOKEN": "secret",
         }
     ]
+
+
+def test_run_launches_registered_external_server_when_installed(monkeypatch):
+    entry = _entry(installable=False, external=True, status="validated")
+    monkeypatch.setattr(cli, "get_server", lambda _: entry)
+    monkeypatch.setattr(cli.shutil, "which", lambda _: "/usr/local/bin/sample-mcp")
+    calls = []
+
+    class Result:
+        returncode = 0
+
+    def fake_run(command, check=False, env=None):
+        calls.append((command, check, env))
+        return Result()
+
+    monkeypatch.setattr(cli.subprocess, "run", fake_run)
+    assert cli.cmd_run(Namespace(server="sample", extra=[], verify=False)) == 0
+    assert calls[0][0] == ["sample-mcp"]
+    assert calls[0][1] is False
+
+
+def test_run_blocks_planned_external_server(monkeypatch):
+    entry = _entry(installable=False, external=True, status="planned")
+    monkeypatch.setattr(cli, "get_server", lambda _: entry)
+    monkeypatch.setattr(cli.subprocess, "run", pytest.fail)
+
+    with pytest.raises(SystemExit, match="planned and cannot be launched"):
+        cli.cmd_run(Namespace(server="sample", extra=[], verify=False))

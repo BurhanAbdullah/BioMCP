@@ -314,3 +314,37 @@ def test_discover_tools_uses_sdk_v2_client(monkeypatch):
             "input_schema": _Tool.input_schema,
         }
     ]
+
+
+def test_external_noninstallable_server_is_discovered_and_called_over_stdio(monkeypatch, tmp_path):
+    import sys
+
+    np = pytest.importorskip("numpy")
+    tifffile = pytest.importorskip("tifffile")
+    import biomcp.mcp_client as mcp_client
+
+    entry = {
+        "name": "external-fixture",
+        "installable": False,
+        "external": True,
+        "status": "validated",
+        "transport": ["stdio"],
+        "command": sys.executable,
+        "args": ["-m", "biomcp_servers.bioimage"],
+        "config": [],
+        "tools": ["inspect_image", "intensity_summary", "threshold_image"],
+    }
+    monkeypatch.setattr(mcp_client, "get_server", lambda name: entry if name == "external-fixture" else (_ for _ in ()).throw(ValueError(name)))
+    image = tmp_path / "external-uint16.tif"
+    tifffile.imwrite(image, np.array([[512, 65535]], dtype=np.uint16))
+
+    tools = discover_tools("external-fixture")
+    assert [tool["name"] for tool in tools] == [
+        "inspect_image", "intensity_summary", "threshold_image"
+    ]
+    result = call_tool("external-fixture", "inspect_image", {"path": str(image)})
+    assert result["is_error"] is False
+    assert result["provenance"]["transport"] == "stdio"
+    assert result["structured_content"]["shape"] == [1, 2]
+    assert result["structured_content"]["dtype"] == "uint16"
+    assert result["structured_content"]["ndim"] == 2
