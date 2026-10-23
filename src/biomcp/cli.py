@@ -413,10 +413,11 @@ def _run_environment(entry: dict[str, Any]) -> dict[str, str]:
 
 def cmd_run(args: argparse.Namespace) -> int:
     entry = get_server(args.server)
-    if entry.get("status") == "deprecated":
-        raise SystemExit(f"{args.server} is deprecated and cannot be launched")
-    if not entry.get("installable"):
-        raise SystemExit(f"{args.server} is not installable (status: {entry.get('status')})")
+    status = entry.get("status")
+    if status in {"planned", "deprecated"}:
+        raise SystemExit(f"{args.server} is {status} and cannot be launched")
+    if not entry.get("installable") and not entry.get("external"):
+        raise SystemExit(f"{args.server} is not installable or external (status: {status})")
     if args.verify:
         readiness = assess_server(args.server)
         print(json.dumps(readiness, indent=2, sort_keys=True))
