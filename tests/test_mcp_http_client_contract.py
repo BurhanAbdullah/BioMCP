@@ -43,7 +43,7 @@ def live_http_server(monkeypatch: pytest.MonkeyPatch):
         "installable": False,
         "transport": ["streamable-http"],
         "endpoint": f"http://127.0.0.1:{port}/mcp",
-        "tools": ["inspect_image", "intensity_summary", "threshold_image"],
+        "tools": ["inspect_image", "inspect_image_metadata", "intensity_summary", "threshold_image"],
     }
     monkeypatch.setattr(mcp_client, "get_server", lambda name: entry)
     try:
@@ -57,6 +57,7 @@ def test_transport_aware_client_discovers_tools_over_real_http(live_http_server)
     tools = mcp_client.discover_tools("fixture-http", transport="streamable-http")
     assert [tool["name"] for tool in tools] == [
         "inspect_image",
+        "inspect_image_metadata",
         "intensity_summary",
         "threshold_image",
     ]
@@ -66,6 +67,7 @@ def test_registry_default_client_discovers_tools_over_real_http(live_http_server
     tools = mcp_client.discover_tools("fixture-http")
     assert [tool["name"] for tool in tools] == [
         "inspect_image",
+        "inspect_image_metadata",
         "intensity_summary",
         "threshold_image",
     ]

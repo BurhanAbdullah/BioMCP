@@ -22,7 +22,7 @@ async def _run_stdio_contract(tmp_path):
     async with Client(params) as client:
         listed = await client.list_tools()
         names = [tool.name for tool in listed.tools]
-        assert names == ["inspect_image", "intensity_summary", "threshold_image"]
+        assert names == ["inspect_image", "inspect_image_metadata", "intensity_summary", "threshold_image"]
 
         tool = next(tool for tool in listed.tools if tool.name == "inspect_image")
         schema = getattr(tool, "inputSchema", None)

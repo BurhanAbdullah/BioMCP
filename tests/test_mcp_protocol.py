@@ -37,7 +37,7 @@ async def _call_tool(module: str, name: str, arguments: dict, env: dict[str, str
 
 def test_bioimage_stdio_protocol_exposes_tools():
     names = asyncio.run(_list_tools("biomcp_servers.bioimage"))
-    assert names == ["inspect_image", "intensity_summary", "threshold_image"]
+    assert names == ["inspect_image", "inspect_image_metadata", "intensity_summary", "threshold_image"]
 
 
 def test_bioimage_stdio_protocol_calls_tool(tmp_path):

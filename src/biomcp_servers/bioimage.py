@@ -1,12 +1,14 @@
-"""BioMCP bioimage server: deterministic local-image primitives."""
+"""BioMCP bioimage server: bounded local microscopy inspection primitives."""
 from __future__ import annotations
 
 import os
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 
+from bioio.image import ImageMetadata, PhysicalSize
 from biomcp.http import create_streamable_http_app
 
 
@@ -18,6 +20,29 @@ def _require_path(path: str) -> Path:
     if limit <= 0:
         raise ValueError("BIOMCP_MAX_INPUT_BYTES must be positive")
     if p.stat().st_size > limit:
+        raise ValueError("Input image exceeds BIOMCP_MAX_INPUT_BYTES")
+    return p
+
+
+def _require_image_path(path: str) -> Path:
+    p = Path(path).expanduser().resolve()
+    if not p.is_file() and not p.is_dir():
+        raise FileNotFoundError(f"Image dataset not found: {p}")
+    limit = int(os.getenv("BIOMCP_MAX_INPUT_BYTES", str(512 * 1024**2)))
+    if limit <= 0:
+        raise ValueError("BIOMCP_MAX_INPUT_BYTES must be positive")
+    if p.is_file():
+        total = p.stat().st_size
+    else:
+        total = 0
+        for child in p.rglob("*"):
+            if child.is_symlink():
+                raise ValueError("Image dataset must not contain symbolic links")
+            if child.is_file():
+                total += child.stat().st_size
+                if total > limit:
+                    raise ValueError("Input image dataset exceeds BIOMCP_MAX_INPUT_BYTES")
+    if total > limit:
         raise ValueError("Input image exceeds BIOMCP_MAX_INPUT_BYTES")
     return p
 
@@ -60,6 +85,102 @@ def _load_image(path: Path):
     return np.asarray(tifffile.imread(path))
 
 
+def _ome_tiff_metadata(path: Path) -> ImageMetadata:
+    try:
+        import tifffile
+    except ImportError as exc:
+        raise RuntimeError("Install with: pip install 'biomcp[bioimage]'") from exc
+
+    with tifffile.TiffFile(path) as tif:
+        series = tif.series[0]
+        axes = str(series.axes)
+        shape = tuple(int(value) for value in series.shape)
+        dtype = str(series.dtype)
+        channels: list[str] = []
+        sizes: dict[str, PhysicalSize] = {}
+        acquisition: dict[str, Any] = {"format": "tiff", "ome": bool(tif.ome_metadata)}
+        if tif.ome_metadata:
+            root = ET.fromstring(tif.ome_metadata)
+            pixels = next((node for node in root.iter() if node.tag.endswith("Pixels")), None)
+            if pixels is not None:
+                for axis in "XYZ":
+                    value = pixels.attrib.get(f"PhysicalSize{axis}")
+                    if value is not None:
+                        unit = pixels.attrib.get(f"PhysicalSize{axis}Unit", "µm")
+                        sizes[axis] = PhysicalSize(float(value), unit)
+                channels = [
+                    node.attrib["Name"]
+                    for node in pixels
+                    if node.tag.endswith("Channel") and node.attrib.get("Name")
+                ]
+                acquisition.update({
+                    key: pixels.attrib[key]
+                    for key in ("DimensionOrder", "Type", "SignificantBits")
+                    if key in pixels.attrib
+                })
+        return ImageMetadata(
+            axes=axes,
+            shape=shape,
+            dtype=dtype,
+            channel_names=tuple(channels),
+            physical_sizes=sizes,
+            acquisition=acquisition,
+        )
+
+
+def _ome_zarr_metadata(path: Path) -> ImageMetadata:
+    try:
+        import zarr
+    except ImportError as exc:
+        raise RuntimeError(
+            "Install OME-Zarr support with: pip install 'biomcp[bioimage]'"
+        ) from exc
+
+    group = zarr.open_group(str(path), mode="r")
+    attrs = dict(group.attrs)
+    multiscales = attrs.get("multiscales")
+    if not isinstance(multiscales, list) or not multiscales:
+        raise ValueError("OME-Zarr dataset is missing multiscales metadata")
+    scale = multiscales[0]
+    datasets = scale.get("datasets", [])
+    if not datasets:
+        raise ValueError("OME-Zarr multiscales metadata has no datasets")
+    dataset_path = datasets[0].get("path")
+    if not isinstance(dataset_path, str) or not dataset_path:
+        raise ValueError("OME-Zarr dataset path is invalid")
+    array = group[dataset_path]
+    raw_axes = scale.get("axes", [])
+    axes = "".join(
+        item if isinstance(item, str) else item.get("name", "")
+        for item in raw_axes
+    ).upper()
+    transformations = datasets[0].get("coordinateTransformations", [])
+    scale_values = next(
+        (item.get("scale") for item in transformations if item.get("type") == "scale"),
+        None,
+    )
+    sizes: dict[str, PhysicalSize] = {}
+    if isinstance(scale_values, list) and len(scale_values) == len(axes):
+        for axis, value, axis_meta in zip(axes, scale_values, raw_axes):
+            if axis in "XYZ" and value is not None:
+                unit = axis_meta.get("unit", "pixel") if isinstance(axis_meta, dict) else "pixel"
+                sizes[axis] = PhysicalSize(float(value), unit)
+    omero = attrs.get("omero", {})
+    channels = tuple(
+        item.get("label", {}).get("name", "")
+        for item in omero.get("channels", [])
+        if item.get("label", {}).get("name")
+    )
+    return ImageMetadata(
+        axes=axes,
+        shape=tuple(int(value) for value in array.shape),
+        dtype=str(array.dtype),
+        channel_names=channels,
+        physical_sizes=sizes,
+        acquisition={"format": "ome-zarr", "version": scale.get("version")},
+    )
+
+
 def create_server() -> MCPServer:
     mcp = MCPServer("BioMCP-BioImage")
 
@@ -78,6 +199,13 @@ def create_server() -> MCPServer:
             "mean": float(a.mean()),
             "std": float(a.std()),
         }
+
+    @mcp.tool()
+    def inspect_image_metadata(path: str) -> dict[str, Any]:
+        """Read axes, channels and physical calibration from TIFF or OME-Zarr."""
+        p = _require_image_path(path)
+        metadata = _ome_zarr_metadata(p) if p.is_dir() else _ome_tiff_metadata(p)
+        return {"path": str(p), **metadata.to_dict()}
 
     @mcp.tool()
     def intensity_summary(path: str) -> dict[str, Any]:
