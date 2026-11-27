@@ -67,6 +67,7 @@ def test_registry_default_client_discovers_tools_over_real_http(live_http_server
     tools = mcp_client.discover_tools("fixture-http")
     assert [tool["name"] for tool in tools] == [
         "inspect_image",
+        "inspect_image_metadata",
         "intensity_summary",
         "threshold_image",
     ]
