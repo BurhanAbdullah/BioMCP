@@ -17,11 +17,16 @@ def test_validate_server_reports_missing_and_unexpected_tools(monkeypatch: pytes
 
     assert result["declared_tools"] == [
         "inspect_image",
+        "inspect_image_metadata",
         "intensity_summary",
         "threshold_image",
     ]
     assert result["live_tools"] == ["inspect_image", "new_tool"]
-    assert result["missing_tools"] == ["intensity_summary", "threshold_image"]
+    assert result["missing_tools"] == [
+        "inspect_image_metadata",
+        "intensity_summary",
+        "threshold_image",
+    ]
     assert result["unexpected_tools"] == ["new_tool"]
     assert result["ok"] is False
 
@@ -33,6 +38,7 @@ def test_validate_server_forwards_declared_stdio_transport(monkeypatch: pytest.M
         seen.update(server=server, transport=transport)
         return [
             {"name": "inspect_image"},
+            {"name": "inspect_image_metadata"},
             {"name": "intensity_summary"},
             {"name": "threshold_image"},
         ]
