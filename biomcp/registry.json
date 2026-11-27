@@ -13,10 +13,22 @@
       "package_extra": "bioimage",
       "distribution": "biomcp",
       "command": "biomcp-bioimage",
-      "transport": ["stdio"],
-      "dependencies": ["numpy", "tifffile", "skimage"],
-      "description": "Open bioimage inspection, intensity and thresholding primitives.",
-      "tools": ["inspect_image", "intensity_summary", "threshold_image"]
+      "transport": [
+        "stdio"
+      ],
+      "dependencies": [
+        "numpy",
+        "tifffile",
+        "skimage",
+        "zarr"
+      ],
+      "description": "Microscopy image inspection, OME metadata, intensity QA and thresholding for TIFF and OME-Zarr datasets.",
+      "tools": [
+        "inspect_image",
+        "inspect_image_metadata",
+        "intensity_summary",
+        "threshold_image"
+      ]
     },
     {
       "name": "imagej",
@@ -28,11 +40,20 @@
       "package_extra": "imagej",
       "distribution": "biomcp",
       "command": "biomcp-imagej",
-      "transport": ["stdio"],
-      "dependencies": ["imagej"],
-      "config": ["BIOMCP_IMAGEJ_EXECUTABLE"],
+      "transport": [
+        "stdio"
+      ],
+      "dependencies": [
+        "imagej"
+      ],
+      "config": [
+        "BIOMCP_IMAGEJ_EXECUTABLE"
+      ],
       "description": "Controlled bridge to an explicitly configured local ImageJ or Fiji runtime.",
-      "tools": ["imagej_status", "run_macro"]
+      "tools": [
+        "imagej_status",
+        "run_macro"
+      ]
     },
     {
       "name": "llm",
@@ -44,13 +65,48 @@
       "package_extra": "llm",
       "distribution": "biomcp",
       "command": "biomcp-llm",
-      "transport": ["stdio"],
+      "transport": [
+        "stdio"
+      ],
       "dependencies": [],
-      "config": ["BIOMCP_LLM_PROVIDER", "BIOMCP_LLM_BASE_URL", "BIOMCP_LLM_API_KEY", "BIOMCP_LLM_MODEL", "BIOMCP_LLM_TIMEOUT_SECONDS", "BIOMCP_LLM_MAX_RESPONSE_BYTES", "BIOMCP_MCP_SERVER_COMMAND", "BIOMCP_MCP_ALLOWED_EXECUTABLES", "BIOMCP_MCP_ALLOWED_TOOLS", "BIOMCP_MCP_TOOL_TIMEOUT_SECONDS", "BIOMCP_MCP_MAX_RESULT_BYTES", "BIOMCP_MCP_SERVER_ENV_JSON"],
-      "providers": ["openai-compatible", "ollama", "vllm"],
-      "capabilities": ["model_discovery", "chat", "responses", "streaming", "structured_output", "tool_calling", "mcp_capability_discovery", "mcp_tool_execution"],
+      "config": [
+        "BIOMCP_LLM_PROVIDER",
+        "BIOMCP_LLM_BASE_URL",
+        "BIOMCP_LLM_API_KEY",
+        "BIOMCP_LLM_MODEL",
+        "BIOMCP_LLM_TIMEOUT_SECONDS",
+        "BIOMCP_LLM_MAX_RESPONSE_BYTES",
+        "BIOMCP_MCP_SERVER_COMMAND",
+        "BIOMCP_MCP_ALLOWED_EXECUTABLES",
+        "BIOMCP_MCP_ALLOWED_TOOLS",
+        "BIOMCP_MCP_TOOL_TIMEOUT_SECONDS",
+        "BIOMCP_MCP_MAX_RESULT_BYTES",
+        "BIOMCP_MCP_SERVER_ENV_JSON"
+      ],
+      "providers": [
+        "openai-compatible",
+        "ollama",
+        "vllm"
+      ],
+      "capabilities": [
+        "model_discovery",
+        "chat",
+        "responses",
+        "streaming",
+        "structured_output",
+        "tool_calling",
+        "mcp_capability_discovery",
+        "mcp_tool_execution"
+      ],
       "description": "Provider based model runtime bridge with an explicitly allowlisted MCP downstream tool broker.",
-      "tools": ["list_models", "complete", "chat", "chat_with_tools", "mcp_capabilities", "mcp_call_tool"]
+      "tools": [
+        "list_models",
+        "complete",
+        "chat",
+        "chat_with_tools",
+        "mcp_capabilities",
+        "mcp_call_tool"
+      ]
     },
     {
       "name": "bionuclei",
@@ -61,9 +117,18 @@
       "installable": false,
       "external": true,
       "command": "bionuclei-mcp",
-      "transport": ["stdio"],
+      "transport": [
+        "stdio"
+      ],
       "description": "Independent validated scientific MCP server for nuclear instance segmentation and derived measurements.",
-      "tools": ["inspect_image", "predict_image", "evaluate_image", "compute_instance_metrics", "read_provenance", "load_result_summary"]
+      "tools": [
+        "inspect_image",
+        "predict_image",
+        "evaluate_image",
+        "compute_instance_metrics",
+        "read_provenance",
+        "load_result_summary"
+      ]
     },
     {
       "name": "pymol",
