@@ -153,7 +153,7 @@ def _ome_zarr_metadata(path: Path) -> ImageMetadata:
     axes = "".join(
         item if isinstance(item, str) else item.get("name", "")
         for item in raw_axes
-    )
+    ).upper()
     transformations = datasets[0].get("coordinateTransformations", [])
     scale_values = next(
         (item.get("scale") for item in transformations if item.get("type") == "scale"),
