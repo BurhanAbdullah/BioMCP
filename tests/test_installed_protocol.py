@@ -62,6 +62,7 @@ def _llm_server() -> tuple[HTTPServer, str]:
 def main() -> None:
     assert asyncio.run(_tools("biomcp-bioimage")) == [
         "inspect_image",
+        "inspect_image_metadata",
         "intensity_summary",
         "threshold_image",
     ]
